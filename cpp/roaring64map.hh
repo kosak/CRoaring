@@ -96,12 +96,14 @@ public:
      * Add value x
      */
     void add(uint32_t x) {
-        roarings[0].add(x);
-        roarings[0].setCopyOnWrite(copyOnWrite);
+        auto &roaring = roarings[0];
+        roaring.add(x);
+        roaring.setCopyOnWrite(copyOnWrite);
     }
     void add(uint64_t x) {
-        roarings[highBytes(x)].add(lowBytes(x));
-        roarings[highBytes(x)].setCopyOnWrite(copyOnWrite);
+        auto &roaring = roarings[highBytes(x)];
+        roaring.add(lowBytes(x));
+        roaring.setCopyOnWrite(copyOnWrite);
     }
 
     /**
@@ -109,13 +111,15 @@ public:
      * Returns true if a new value was added, false if the value was already existing.
      */
     bool addChecked(uint32_t x) {
-        bool result = roarings[0].addChecked(x);
-        roarings[0].setCopyOnWrite(copyOnWrite);
+        auto &roaring = roarings[0];
+        bool result = roaring.addChecked(x);
+        roaring.setCopyOnWrite(copyOnWrite);
         return result;
     }
     bool addChecked(uint64_t x) {
-        bool result = roarings[highBytes(x)].addChecked(lowBytes(x));
-        roarings[highBytes(x)].setCopyOnWrite(copyOnWrite);
+        auto &roaring = roarings[highBytes(x)];
+        bool result = roaring.addChecked(lowBytes(x));
+        roaring.setCopyOnWrite(copyOnWrite);
         return result;
     }
 
@@ -144,25 +148,31 @@ public:
         uint32_t end_high = highBytes(max);
         uint32_t end_low = lowBytes(max);
         if (start_high == end_high) {
-            roarings[start_high].addRangeClosed(start_low, end_low);
-            roarings[start_high].setCopyOnWrite(copyOnWrite);
+            auto &roaring = roarings[start_high];
+            roaring.addRangeClosed(start_low, end_low);
+            roaring.setCopyOnWrite(copyOnWrite);
             return;
         }
-        // we put std::numeric_limits<>::max/min in parenthesis to avoid a clash
-        // with the Windows.h header under Windows
-        roarings[start_high].addRangeClosed(
-            start_low, (std::numeric_limits<uint32_t>::max)());
-        roarings[start_high].setCopyOnWrite(copyOnWrite);
-        start_high++;
+
+        {
+            // Make a new scope so that 'roaring' doesn't leak out and confuse us.
+            auto &roaring = roarings[start_high];
+            // we put std::numeric_limits<>::max/min in parenthesis to avoid a clash
+            // with the Windows.h header under Windows
+            roaring.addRangeClosed(start_low, (std::numeric_limits<uint32_t>::max)());
+            roaring.setCopyOnWrite(copyOnWrite);
+            ++start_high;
+        }
         for (; start_high < end_high; ++start_high) {
-            roarings[start_high].addRangeClosed(
+            auto &roaring = roarings[start_high];
+            roaring.addRangeClosed(
                 (std::numeric_limits<uint32_t>::min)(),
                 (std::numeric_limits<uint32_t>::max)());
-            roarings[start_high].setCopyOnWrite(copyOnWrite);
+            roaring.setCopyOnWrite(copyOnWrite);
         }
-        roarings[end_high].addRangeClosed(
-            (std::numeric_limits<uint32_t>::min)(), end_low);
-        roarings[end_high].setCopyOnWrite(copyOnWrite);
+        auto &roaring = roarings[end_high];
+        roaring.addRangeClosed((std::numeric_limits<uint32_t>::min)(), end_low);
+        roaring.setCopyOnWrite(copyOnWrite);
     }
 
     /**
@@ -176,8 +186,9 @@ public:
 
     void addMany(size_t n_args, const uint64_t *vals) {
         for (size_t lcv = 0; lcv < n_args; lcv++) {
-            roarings[highBytes(vals[lcv])].add(lowBytes(vals[lcv]));
-            roarings[highBytes(vals[lcv])].setCopyOnWrite(copyOnWrite);
+            auto &roaring = roarings[highBytes(vals[lcv])];
+            roaring.add(lowBytes(vals[lcv]));
+            roaring.setCopyOnWrite(copyOnWrite);
         }
     }
 
@@ -268,8 +279,12 @@ public:
      * Return the largest value (if not empty)
      */
     uint64_t maximum() const {
-        for (auto roaring_iter = roarings.crbegin();
-             roaring_iter != roarings.crend(); ++roaring_iter) {
+        // It is faster to use a forward iterator in the reverse direction than
+        // it is to use a reverse iterator. The reason is that operator * and
+        // operator -> are not constant time on map::reverse_iterator.
+        auto roaring_iter = roarings.end();
+        while (roaring_iter != roarings.begin()) {
+            --roaring_iter;
             if (!roaring_iter->second.isEmpty()) {
                 return uniteBytes(roaring_iter->first,
                                   roaring_iter->second.maximum());
@@ -284,11 +299,9 @@ public:
      * Return the smallest value (if not empty)
      */
     uint64_t minimum() const {
-        for (auto roaring_iter = roarings.cbegin();
-             roaring_iter != roarings.cend(); ++roaring_iter) {
-            if (!roaring_iter->second.isEmpty()) {
-                return uniteBytes(roaring_iter->first,
-                                  roaring_iter->second.minimum());
+        for (const auto &entry : roarings) {
+            if (!entry.second.isEmpty()) {
+                return uniteBytes(entry.first, entry.second.minimum());
             }
         }
         // we put std::numeric_limits<>::max/min in parentheses
@@ -300,12 +313,14 @@ public:
      * Check if value x is present
      */
     bool contains(uint32_t x) const {
-        return roarings.count(0) == 0 ? false : roarings.at(0).contains(x);
+        auto roaring_iter = roarings.find(0);
+        return roaring_iter != roarings.end() &&
+               roaring_iter->second.contains(x);
     }
     bool contains(uint64_t x) const {
-        return roarings.count(highBytes(x)) == 0
-            ? false
-            : roarings.at(highBytes(x)).contains(lowBytes(x));
+        auto roaring_iter = roarings.find(highBytes(x));
+        return roaring_iter != roarings.end() &&
+               roaring_iter->second.contains(lowBytes(x));
     }
 
     /**
@@ -314,11 +329,17 @@ public:
      * is not modified.
      */
     Roaring64Map &operator&=(const Roaring64Map &r) {
-        for (auto &map_entry : roarings) {
-            if (r.roarings.count(map_entry.first) == 1)
-                map_entry.second &= r.roarings.at(map_entry.first);
-            else
-                map_entry.second = Roaring();
+        auto dest_iter = roarings.begin();
+        while (dest_iter != roarings.end()) {
+            auto next_iter = std::next(dest_iter);
+            auto src_iter = r.roarings.find(dest_iter->first);
+            if (src_iter != r.roarings.end()) {
+                dest_iter->second &= src_iter->second;
+            } else {
+                // Remove the inner Roaring from the map.
+                roarings.erase(dest_iter);
+            }
+            dest_iter = next_iter;
         }
         return *this;
     }
@@ -329,9 +350,17 @@ public:
      * is not modified.
      */
     Roaring64Map &operator-=(const Roaring64Map &r) {
-        for (auto &map_entry : roarings) {
-            if (r.roarings.count(map_entry.first) == 1)
-                map_entry.second -= r.roarings.at(map_entry.first);
+        auto dest_iter = roarings.begin();
+        while (dest_iter != roarings.end()) {
+            auto next_iter = std::next(dest_iter);
+            auto src_iter = r.roarings.find(dest_iter->first);
+            if (src_iter != r.roarings.end()) {
+                dest_iter->second -= src_iter->second;
+                if (dest_iter->second.isEmpty()) {
+                    roarings.erase(dest_iter);
+                }
+            }
+            dest_iter = next_iter;
         }
         return *this;
     }
@@ -345,11 +374,14 @@ public:
      */
     Roaring64Map &operator|=(const Roaring64Map &r) {
         for (const auto &map_entry : r.roarings) {
-            if (roarings.count(map_entry.first) == 0) {
-                roarings[map_entry.first] = map_entry.second;
-                roarings[map_entry.first].setCopyOnWrite(copyOnWrite);
-            } else
-                roarings[map_entry.first] |= map_entry.second;
+            auto result = roarings.insert(map_entry);
+            if (result.second) {
+                // Key not present in destination, so insert was performed.
+                result.first->second.setCopyOnWrite(copyOnWrite);
+            } else {
+                // Key already present in destination (insert not performed).
+                result.first->second |= map_entry.second;
+            }
         }
         return *this;
     }
@@ -361,11 +393,14 @@ public:
      */
     Roaring64Map &operator^=(const Roaring64Map &r) {
         for (const auto &map_entry : r.roarings) {
-            if (roarings.count(map_entry.first) == 0) {
-                roarings[map_entry.first] = map_entry.second;
-                roarings[map_entry.first].setCopyOnWrite(copyOnWrite);
-            } else
-                roarings[map_entry.first] ^= map_entry.second;
+            auto result = roarings.insert(map_entry);
+            if (result.second) {
+                // Key not present in destination, so insert was performed.
+                result.first->second.setCopyOnWrite(copyOnWrite);
+            } else {
+                // Key already present in destination (insert not performed).
+                result.first->second ^= map_entry.second;
+            }
         }
         return *this;
     }
@@ -535,26 +570,34 @@ public:
         uint32_t end_low = lowBytes(range_end);
 
         if (start_high == end_high) {
-            roarings[start_high].flip(start_low, end_low);
+            auto &r = roarings[start_high];
+            r.flip(start_low, end_low);
+            r.setCopyOnWrite(copyOnWrite);
             return;
         }
         // we put std::numeric_limits<>::max/min in parentheses
         // to avoid a clash with the Windows.h header under Windows
         // flip operates on the range [lower_bound, upper_bound)
         const uint64_t max_upper_bound =
-            static_cast<uint64_t>((std::numeric_limits<uint32_t>::max)()) + 1;
-        roarings[start_high].flip(start_low, max_upper_bound);
-        roarings[start_high++].setCopyOnWrite(copyOnWrite);
-
-        for (; start_high <= highBytes(range_end) - 1; ++start_high) {
-            roarings[start_high].flip((std::numeric_limits<uint32_t>::min)(),
-                                      max_upper_bound);
-            roarings[start_high].setCopyOnWrite(copyOnWrite);
+            static_cast<uint64_t>((std::numeric_limits<uint32_t>::max)()) +
+            1;
+        {
+            auto &r = roarings[start_high];
+            r.flip(start_low, max_upper_bound);
+            r.setCopyOnWrite(copyOnWrite);
+            ++start_high;
         }
 
-        roarings[start_high].flip((std::numeric_limits<uint32_t>::min)(),
-                                  end_low);
-        roarings[start_high].setCopyOnWrite(copyOnWrite);
+        for (; start_high <= highBytes(range_end) - 1; ++start_high) {
+            auto &r = roarings[start_high];
+            r.flip((std::numeric_limits<uint32_t>::min)(),
+                                      max_upper_bound);
+            r.setCopyOnWrite(copyOnWrite);
+        }
+
+        auto &r = roarings[start_high];
+        r.flip((std::numeric_limits<uint32_t>::min)(), end_low);
+        r.setCopyOnWrite(copyOnWrite);
     }
 
     /**
@@ -590,15 +633,16 @@ public:
     size_t shrinkToFit() {
         size_t savedBytes = 0;
         auto iter = roarings.begin();
-        while (iter != roarings.cend()) {
+        while (iter != roarings.end()) {
+            auto next_iter = std::next(iter);
             if (iter->second.isEmpty()) {
                 // empty Roarings are 84 bytes
                 savedBytes += 88;
-                roarings.erase(iter++);
+                roarings.erase(iter);
             } else {
                 savedBytes += iter->second.shrinkToFit();
-                iter++;
             }
+            iter = next_iter;
         }
         return savedBytes;
     }
@@ -649,19 +693,20 @@ public:
      */
     uint64_t rank(uint64_t x) const {
         uint64_t result = 0;
-        auto roaring_destination = roarings.find(highBytes(x));
-        if (roaring_destination != roarings.cend()) {
-            for (auto roaring_iter = roarings.cbegin();
-                 roaring_iter != roaring_destination; ++roaring_iter) {
-                result += roaring_iter->second.cardinality();
-            }
-            result += roaring_destination->second.rank(lowBytes(x));
-            return result;
-        }
-        roaring_destination = roarings.lower_bound(highBytes(x));
-        for (auto roaring_iter = roarings.cbegin();
+        // roaring_destination points to the first entry having
+        // key >= highBytes(x), or it points to end()
+        auto roaring_destination = roarings.lower_bound(highBytes(x));
+        // Add all the cardinalities of map entries with keys < highBytes(x)
+        for (auto roaring_iter = roarings.begin();
              roaring_iter != roaring_destination; ++roaring_iter) {
             result += roaring_iter->second.cardinality();
+        }
+        // If roaring_destination happens to point to a key == highBytes(x)
+        // (rather than the other two possibilities, namely > highBytes(x) or
+        // end()), then include the rank of lowBytes(x).
+        if (roaring_destination != roarings.end() &&
+            roaring_destination->first == highBytes(x)) {
+            result += roaring_destination->second.rank(lowBytes(x));
         }
         return result;
     }
