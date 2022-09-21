@@ -309,16 +309,43 @@ public:
     }
 
     /**
-     * Compute the intersection between the current bitmap and the provided
-     * bitmap, writing the result in the current bitmap. The provided bitmap
-     * is not modified.
+     * Compute the intersection of the current bitmap and the provided bitmap,
+     * writing the result in the current bitmap. The provided bitmap is not
+     * modified.
      */
-    Roaring64Map &operator&=(const Roaring64Map &r) {
-        for (auto &map_entry : roarings) {
-            if (r.roarings.count(map_entry.first) == 1)
-                map_entry.second &= r.roarings.at(map_entry.first);
-            else
-                map_entry.second = Roaring();
+    Roaring64Map &operator&=(const Roaring64Map &other) {
+        if (this == &other) {
+            // ANDing with ourself is a no-op.
+            return *this;
+        }
+
+        auto self_next = roarings.begin();  // Placeholder value, replaced below
+        for (auto self_iter = roarings.begin(); self_iter != roarings.end();
+             self_iter = self_next) {
+            // Do the 'next' operation early because we might invalidate
+            // self_iter down below with the 'erase' operation.
+            self_next = std::next(self_iter);
+
+            auto self_key = self_iter->first;
+            auto &self_bitmap = self_iter->second;
+
+            auto other_iter = other.roarings.find(self_key);
+            if (other_iter == other.roarings.end()) {
+                // 'other' doesn't have self_key. This means that the result of
+                // the intersection is empty and self should erase its whole
+                // inner bitmap here.
+                roarings.erase(self_iter);
+                continue;
+            }
+
+            // Both sides have self_key so we need to compute the intersection.
+            const auto &other_bitmap = other_iter->second;
+            self_bitmap &= other_bitmap;
+            if (self_bitmap.isEmpty()) {
+                // The intersection operation has resulted in an empty bitmap.
+                // So remove it from the map altogether.
+                roarings.erase(self_iter);
+            }
         }
         return *this;
     }
@@ -328,44 +355,125 @@ public:
      * bitmap, writing the result in the current bitmap. The provided bitmap
      * is not modified.
      */
-    Roaring64Map &operator-=(const Roaring64Map &r) {
-        for (auto &map_entry : roarings) {
-            if (r.roarings.count(map_entry.first) == 1)
-                map_entry.second -= r.roarings.at(map_entry.first);
+    Roaring64Map &operator-=(const Roaring64Map &other) {
+        if (this == &other) {
+            // Subtracting from ourself results in the empty map.
+            roarings.clear();
+            return *this;
+        }
+
+        auto self_next = roarings.begin();  // Placeholder value, replaced below
+        for (auto self_iter = roarings.begin(); self_iter != roarings.end();
+             self_iter = self_next) {
+            // Do the 'next' operation early because we might invalidate
+            // self_iter down below with the 'erase' operation.
+            self_next = std::next(self_iter);
+
+            auto self_key = self_iter->first;
+            auto &self_bitmap = self_iter->second;
+
+            auto other_iter = other.roarings.find(self_key);
+            if (other_iter == other.roarings.end()) {
+                // 'other' doesn't have self_key. This means that the
+                // self_bitmap can be left alone (there is nothing to subtract
+                // from it) and we can move on.
+                continue;
+            }
+
+            // Both sides have self_key so we need to compute the difference.
+            const auto &other_bitmap = other_iter->second;
+            self_bitmap -= other_bitmap;
+
+            // If the difference operation caused the inner bitmap to become
+            // empty, remove it from the map.
+            if (self_bitmap.isEmpty()) {
+                roarings.erase(self_iter);
+            }
         }
         return *this;
     }
 
     /**
-     * Compute the union between the current bitmap and the provided bitmap,
+     * Compute the union of the current bitmap and the provided bitmap,
      * writing the result in the current bitmap. The provided bitmap is not
      * modified.
      *
      * See also the fastunion function to aggregate many bitmaps more quickly.
      */
-    Roaring64Map &operator|=(const Roaring64Map &r) {
-        for (const auto &map_entry : r.roarings) {
-            if (roarings.count(map_entry.first) == 0) {
-                roarings[map_entry.first] = map_entry.second;
-                roarings[map_entry.first].setCopyOnWrite(copyOnWrite);
-            } else
-                roarings[map_entry.first] |= map_entry.second;
+    Roaring64Map &operator|=(const Roaring64Map &other) {
+        if (this == &other) {
+            // ORing with ourself is a no-op.
+            return *this;
+        }
+
+        for (const auto &other_entry : other.roarings) {
+            const auto &other_bitmap = other_entry.second;
+
+            // Try to insert other_bitmap into self at other_key. We take
+            // advantage of the fact that insert will not overwrite an
+            // existing key.
+            auto insert_result = roarings.insert(other_entry);
+            auto self_iter = insert_result.first;
+            auto insert_happened = insert_result.second;
+            auto &self_bitmap = self_iter->second;
+
+            if (insert_happened) {
+                // Key not present in self, so insert was performed, reflecting
+                // the operation (empty | X) == X
+                // The bitmap has been copied, so we just need to set the
+                // copyOnWrite flag.
+                self_bitmap.setCopyOnWrite(copyOnWrite);
+                continue;
+            }
+
+            // Key was already present in self, so insert not performed.
+            // So we have to union the other bitmap with self.
+            self_bitmap |= other_bitmap;
         }
         return *this;
     }
 
     /**
-     * Compute the symmetric union between the current bitmap and the provided
-     * bitmap, writing the result in the current bitmap. The provided bitmap
-     * is not modified.
+     * Compute the XOR of the current bitmap and the provided bitmap, writing
+     * the result in the current bitmap. The provided bitmap is not modified.
      */
-    Roaring64Map &operator^=(const Roaring64Map &r) {
-        for (const auto &map_entry : r.roarings) {
-            if (roarings.count(map_entry.first) == 0) {
-                roarings[map_entry.first] = map_entry.second;
-                roarings[map_entry.first].setCopyOnWrite(copyOnWrite);
-            } else
-                roarings[map_entry.first] ^= map_entry.second;
+    Roaring64Map &operator^=(const Roaring64Map &other) {
+        if (this == &other) {
+            // XORing with ourself results in the empty map.
+            roarings.clear();
+            return *this;
+        }
+
+        for (const auto &other_entry : other.roarings) {
+            const auto &other_bitmap = other_entry.second;
+
+            // Try to insert other_bitmap into self at other_key. We take
+            // advantage of the fact that insert will not overwrite an
+            // existing key.
+            auto insert_result = roarings.insert(other_entry);
+            auto self_iter = insert_result.first;
+            auto insert_happened = insert_result.second;
+            auto &self_bitmap = self_iter->second;
+
+            if (insert_happened) {
+                // Key not present in self, so insert was performed, reflecting
+                // the operation (empty ^ X) == X
+                // The bitmap has been copied, so we just need to set the
+                // copyOnWrite flag.
+                self_bitmap.setCopyOnWrite(copyOnWrite);
+                continue;
+            }
+
+            // Key was already present in self, so insert not performed.
+            // So we have to union the other bitmap with self.
+            self_bitmap ^= other_bitmap;
+
+            // The XOR operation might have caused the inner Roaring to become
+            // empty (if self_bitmap == other_bitmap). If so, remove it from the
+            // map.
+            if (self_bitmap.isEmpty()) {
+                roarings.erase(self_iter);
+            }
         }
         return *this;
     }
