@@ -83,7 +83,8 @@ Roaring make_random_bitset() {
             uint32_t card = r.cardinality();
             if (card != 0) {
                 uint32_t rnk = rand() % card;
-                uint32_t element;
+                // Set to 0 to avoid warning from pedantic static analyzers.
+                uint32_t element = 0;
                 assert_true(r.select(rnk, &element));
                 assert_int_equal(rnk + 1, r.rank(element));
                 r.remove(rnk);
@@ -130,7 +131,8 @@ Roaring64Map make_random_bitset64() {
                 uint64_t card = r.cardinality();
                 if (card != 0) {
                     uint64_t rnk = rand() % card;
-                    uint64_t element;
+                    // Set to 0 to avoid warning from pedantic static analyzers.
+                    uint64_t element = 0;
                     assert_true(r.select(rnk, &element));
                     assert_int_equal(rnk + 1, r.rank(element));
                     r.remove(rnk);
@@ -423,7 +425,8 @@ DEFINE_TEST(random_doublecheck_test_64) {
                 uint64_t card = out.cardinality();
                 if (card != 0) {  // pick gravity point inside set somewhere
                     uint64_t rnk = rand() % card;
-                    uint64_t element;
+                    // Set to 0 to avoid warning from pedantic static analyzers.
+                    uint64_t element = 0;
                     assert_true(out.select(rnk, &element));
                     assert_int_equal(rnk + 1, out.rank(element));
                     gravity64 = element;
