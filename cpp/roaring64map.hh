@@ -376,27 +376,58 @@ public:
     void swap(Roaring64Map &r) { roarings.swap(r.roarings); }
 
     /**
-     * Get the cardinality of the bitmap (number of elements).
-     * Throws std::length_error in the special case where the bitmap is full
-     * (cardinality() == 2^64). Check isFull() before calling to avoid
-     * exception.
+     * Gets the cardinality of the bitmap (number of elements).
+     * Throws std::length_error or terminates in the special case where the
+     * bitmap is completely full and therefore its size (namely 2^64) cannot be
+     * represented as a uint64_t. If this is a possibility in your application,
+     * consider calling cardinality_nothrow() instead.
      */
     uint64_t cardinality() const {
-        if (isFull()) {
-#if ROARING_EXCEPTIONS
-            throw std::length_error("bitmap is full, cardinality is 2^64, "
-                                    "unable to represent in a 64-bit integer");
-#else
-            ROARING_TERMINATE("bitmap is full, cardinality is 2^64, "
-                              "unable to represent in a 64-bit integer");
-#endif
+        auto result = cardinality_nothrow();
+        if (!result.second) {
+            return result.first;
         }
-        return std::accumulate(
-            roarings.cbegin(), roarings.cend(), (uint64_t)0,
-            [](uint64_t previous,
-               const std::pair<const uint32_t, Roaring> &map_entry) {
-                return previous + map_entry.second.cardinality();
-            });
+
+        const char *errorMessage = "bitmap is full, cardinality is 2^64, "
+            "unable to represent in a 64-bit integer";
+
+#if ROARING_EXCEPTIONS
+        throw std::length_error(errorMessage);
+#else
+        ROARING_TERMINATE(errorMessage);
+#endif
+    }
+
+    /**
+     * Gets the cardinality of the bitmap (number of elements).
+     * Returns {0, true} if the bitmap is completely full (i.e. has cardinality
+     * 2^64). Otherwise, returns {cardinality, false}.
+     */
+    std::pair<uint64_t, bool> cardinality_nothrow() const {
+        // This is a somewhat verbose way of writing the constant 2^32.
+        // we put std::numeric_limits<>::max/min in parentheses
+        // to avoid a clash with the Windows.h header under Windows
+        const auto max_cardinality =
+            uint64_t((std::numeric_limits<uint32_t>::max)()) + 1;
+
+        uint64_t result = 0;
+        auto all_bitmaps_have_max_cardinality = true;
+        for (const auto &entry : roarings) {
+            const auto &bitmap = entry.second;
+            auto bc = bitmap.cardinality();
+            if (bc != max_cardinality) {
+                all_bitmaps_have_max_cardinality = false;
+            }
+            result += bc;
+        }
+
+        if (roarings.size() == max_cardinality &&
+            all_bitmaps_have_max_cardinality) {
+            // There are 2^32 bitmaps, each having cardinality 2^32.
+            return {0, true};
+        }
+
+        return {result, false};
     }
 
     /**
@@ -410,26 +441,24 @@ public:
     }
 
     /**
-     * Returns true if the bitmap is full (cardinality is max uint64_t + 1).
+     * Returns true if the bitmap is full (i.e. has cardinality 2^64), otherwise
+     * returns false.
      */
     bool isFull() const {
-        // only bother to check if map is fully saturated
-        //
+        // This is a somewhat verbose way of writing the constant 2^32.
         // we put std::numeric_limits<>::max/min in parentheses
         // to avoid a clash with the Windows.h header under Windows
-        return roarings.size() ==
-            ((uint64_t)(std::numeric_limits<uint32_t>::max)()) + 1
-            ? std::all_of(
-                roarings.cbegin(), roarings.cend(),
-                [](const std::pair<const uint32_t, Roaring> &roaring_map_entry) {
-                    // roarings within map are saturated if cardinality
-                    // is uint32_t max + 1
-                    return roaring_map_entry.second.cardinality() ==
-                        ((uint64_t)
-                         (std::numeric_limits<uint32_t>::max)()) +
-                        1;
-                })
-            : false;
+        const auto max_cardinality =
+            uint64_t((std::numeric_limits<uint32_t>::max)()) + 1;
+
+        for (const auto &entry : roarings) {
+            const auto &bitmap = entry.second;
+            auto bc = bitmap.cardinality();
+            if (bc != max_cardinality) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
