@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <chrono>
+#include <random>
+#include <set>
 #include <vector>
 
 
@@ -24,6 +27,8 @@ using roaring::Roaring;  // the C++ wrapper class
 
 #include "roaring64map.hh"
 using roaring::Roaring64Map;  // C++ class extended for 64-bit numbers
+
+#include "roaring64map_checked.hh"
 
 #include "test.h"
 
@@ -828,6 +833,132 @@ DEFINE_TEST(test_cpp_remove_range_64) {
     }
 }
 
+std::pair<doublechecked::Roaring64Map, doublechecked::Roaring64Map>
+    makeTwoBigRoaring64Maps() {
+    // Insert a large number of pseudorandom numbers into two sets.
+    const uint32_t randomSeed = 0xdeadbeef;
+    const size_t numValues = 1000000;  // 1 million
+
+    doublechecked::Roaring64Map roaring1;
+    doublechecked::Roaring64Map roaring2;
+
+    std::default_random_engine engine(randomSeed);
+    std::uniform_int_distribution<uint64_t> rng;
+
+    for (size_t i = 0; i < numValues; ++i) {
+        auto value = rng(engine);
+        auto choice = rng(engine) % 4;
+        switch (choice) {
+            case 0: {
+                roaring1.add(value);
+                break;
+            }
+
+            case 1: {
+                roaring2.add(value);
+                break;
+            }
+
+            case 2: {
+                roaring1.add(value);
+                roaring2.add(value);
+                break;
+            }
+
+            case 3: {
+                roaring1.add(value);
+                roaring2.add(value + 5);
+                break;
+            }
+
+            default:
+                assert_true(false);
+        }
+    }
+    return std::make_pair(std::move(roaring1), std::move(roaring2));
+}
+
+DEFINE_TEST(this_is_a_benchmark) {
+    const uint64_t four_billion = 4000000000;
+
+    const size_t numValues = 10000000;  // 10 million
+
+    uint64_t soleRemainingValue = 12345;
+
+    const size_t numRepetitions = 10;
+
+    Roaring64Map r;
+    for (size_t i = 0; i < numValues; ++i) {
+        auto value = i * four_billion;
+        r.add(value);
+        r.remove(value);
+    }
+
+    r.add(soleRemainingValue);
+
+    for (size_t i = 0; i < numRepetitions; ++i) {
+        auto startTime = std::chrono::system_clock::now();
+        auto m = r.maximum();
+        if (m != soleRemainingValue) {
+            std::cerr << "That was unexpected\n";
+            exit(1);
+        }
+        auto endTime = std::chrono::system_clock::now();
+        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          endTime - startTime)
+                          .count();
+        std::cerr << "Repetition " << i << ": Elapsed time in millis: " << millis << '\n';
+    }
+}
+
+DEFINE_TEST(test_cpp_union_64) {
+    auto twoMaps = makeTwoBigRoaring64Maps();
+
+    auto &lhs = twoMaps.first;
+    const auto &rhs = twoMaps.second;
+
+    lhs |= rhs;
+    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
+
+    assert_true(lhs.does_std_set_match_roaring());
+}
+
+DEFINE_TEST(test_cpp_intersect_64) {
+    auto twoMaps = makeTwoBigRoaring64Maps();
+
+    auto &lhs = twoMaps.first;
+    const auto &rhs = twoMaps.second;
+
+    lhs &= rhs;
+    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
+
+    assert_true(lhs.does_std_set_match_roaring());
+}
+
+DEFINE_TEST(test_cpp_difference_64) {
+    auto twoMaps = makeTwoBigRoaring64Maps();
+
+    auto &lhs = twoMaps.first;
+    const auto &rhs = twoMaps.second;
+
+    lhs -= rhs;
+    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
+
+    assert_true(lhs.does_std_set_match_roaring());
+}
+
+DEFINE_TEST(test_cpp_xor_64) {
+    auto twoMaps = makeTwoBigRoaring64Maps();
+
+    auto &lhs = twoMaps.first;
+    const auto &rhs = twoMaps.second;
+
+    lhs ^= rhs;
+    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
+
+    assert_true(lhs.does_std_set_match_roaring());
+}
+
 DEFINE_TEST(test_cpp_clear_64) {
     Roaring64Map roaring;
 
@@ -1201,6 +1332,7 @@ DEFINE_TEST(test_cpp_deserialize_64_key_too_small) {
 int main() {
     roaring::misc::tellmeall();
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(this_is_a_benchmark),
         cmocka_unit_test(serial_test),
         cmocka_unit_test(test_example_true),
         cmocka_unit_test(test_example_false),
@@ -1218,6 +1350,10 @@ int main() {
         cmocka_unit_test(test_run_compression_cpp_64_false),
         cmocka_unit_test(test_run_compression_cpp_true),
         cmocka_unit_test(test_run_compression_cpp_false),
+        cmocka_unit_test(test_cpp_union_64),
+        cmocka_unit_test(test_cpp_intersect_64),
+        cmocka_unit_test(test_cpp_difference_64),
+        cmocka_unit_test(test_cpp_xor_64),
         cmocka_unit_test(test_cpp_clear_64),
         cmocka_unit_test(test_cpp_move_64),
         cmocka_unit_test(test_roaring64_iterate_multi_roaring),

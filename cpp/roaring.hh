@@ -389,15 +389,15 @@ public:
     }
 
     /**
-     * Selects the value at index rnk in the bitmap, where the smallest value
+     * Selects the value at index 'rank' in the bitmap, where the smallest value
      * is at index 0.
      *
      * If the size of the roaring bitmap is strictly greater than rank, then
      * this function returns true and sets element to the element of given rank.
-     * Otherwise, it returns false.
+     * Otherwise, it returns false and the contents of *element are unspecified.
      */
-    bool select(uint32_t rnk, uint32_t *element) const {
-        return api::roaring_bitmap_select(&roaring, rnk, element);
+    bool select(uint32_t rank, uint32_t *element) const {
+        return api::roaring_bitmap_select(&roaring, rank, element);
     }
 
     /**
