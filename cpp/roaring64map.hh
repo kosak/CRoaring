@@ -335,6 +335,11 @@ public:
             auto src_iter = r.roarings.find(dest_iter->first);
             if (src_iter != r.roarings.end()) {
                 dest_iter->second &= src_iter->second;
+                if (dest_iter->second.isEmpty()) {
+                    // If the AND operation caused the inner Roaring to become
+                    // empty, remove it from the map.
+                    roarings.erase(dest_iter);
+                }
             } else {
                 // Remove the inner Roaring from the map.
                 roarings.erase(dest_iter);
@@ -356,6 +361,8 @@ public:
             auto src_iter = r.roarings.find(dest_iter->first);
             if (src_iter != r.roarings.end()) {
                 dest_iter->second -= src_iter->second;
+                // If the difference operation caused the inner Roaring to
+                // become empty, remove it from the map.
                 if (dest_iter->second.isEmpty()) {
                     roarings.erase(dest_iter);
                 }
@@ -400,6 +407,11 @@ public:
             } else {
                 // Key already present in destination (insert not performed).
                 result.first->second ^= map_entry.second;
+                // If the XOR operation caused the inner Roaring to become
+                // empty, remove it from the map.
+                if (result.first->second.isEmpty()) {
+                    roarings.erase(result.first);
+                }
             }
         }
         return *this;
