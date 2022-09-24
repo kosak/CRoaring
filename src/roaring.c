@@ -1319,6 +1319,8 @@ bool roaring_bitmap_is_empty(const roaring_bitmap_t *r) {
     return r->high_low_container.size == 0;
 }
 
+void calcKey(void *x) {}
+
 void roaring_bitmap_to_uint32_array(const roaring_bitmap_t *r, uint32_t *ans) {
     ra_to_uint32_array(&r->high_low_container, ans);
 }
