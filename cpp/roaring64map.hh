@@ -10,6 +10,7 @@ A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 #include <cstdio>  // for std::printf() in the printf() method
 #include <cstring>  // for std::memcpy()
 #include <initializer_list>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <new>
