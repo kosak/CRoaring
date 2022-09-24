@@ -8,29 +8,29 @@ namespace {
 void testIterationHypothesis() {
     std::cout << "Hypothesis: with std::map, it is better to use forward iterators\n"
                  "(moving in the reverse direction),\n"
-                 "than it is to use reverse iterators.\n";
+                 "than it is to use reverse iterators.\n\n";
 
-    std::cout << "\nHowever, this depends on the code. If the optimizer can\n"
+    std::cout << "However, this depends on the code. If the optimizer can\n"
                  "inline everything and prove that the iteration doesn't alter\n"
                  "the structure of the map, then it can make the two cases\n"
                  "equivalent in speed. But if it can't (for example, if the\n"
                  "iteration calls out to a function that the optimizer can't\n"
-                 "inline or look through, then reverse iteration will be slower.\n";
+                 "inline or look through, then reverse iteration will be slower.\n\n";
 
-    std::cout << "\nIn our case, we do have such an external function, and so\n"
+    std::cout << "In our case, we do have such an external function, and so\n"
                  "we *do* expect reverse iteration to be slower.\n";
 
     std::cout << "\nFor Roaring64, currently the only case where we use reverse\n"
                  "iteration is in the implementation of maximum(), and even there\n"
                  "the difference will only be noticeable in situations where\n"
-                 "there are a *lot* of empty bitmaps to skip over.\n";
+                 "there are a *lot* of empty bitmaps to skip over.\n\n";
 
     // Repeat the test a few times to smooth out the measurements
     size_t numTestIterations = 10;
 
     // For fun, we space our elements "almost" 2^32 apart but not quite.
     const uint64_t four_billion = 4000000000;
-    const size_t numEmptyBitmaps = 20000000;  // 20 million
+    const size_t numEmptyBitmaps = 50000000;  // 50 million
 
     // We want one remaining value at the very front of the bitmap. This is
     // because "maximum" has to scan backwards from the end, skipping

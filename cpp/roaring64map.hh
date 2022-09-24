@@ -501,10 +501,8 @@ public:
         auto iter = roarings.end();
         while (iter != roarings.begin()) {
             --iter;
-            auto innerKey = iter->first;
-            const auto &innerBitmap = iter->second;
-            if (!innerBitmap.isEmpty()) {
-                return uniteBytes(innerKey, innerBitmap.maximum());
+            if (!iter->second.isEmpty()) {
+                return uniteBytes(iter->first, iter->second.maximum());
             }
         }
         return 0;
