@@ -516,7 +516,7 @@ public:
     /**
      * Return the largest value (if not empty).
      */
-    uint64_t maximum_previous_impl() const {
+    uint64_t maximum_legacy_impl() const {
         for (auto roaring_iter = roarings.crbegin();
              roaring_iter != roarings.crend(); ++roaring_iter) {
             if (!roaring_iter->second.isEmpty()) {

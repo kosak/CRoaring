@@ -93,9 +93,91 @@ int notsofull() {
     return 0;
 }
 
+void testReverseIteration() {
+    // For fun, we space our elements "almost" 2^32 apart but not quite.
+    const uint64_t four_billion = 4000000000;
+    const size_t numValues = 50000000;  // 50 million
+
+    // We want one remaining value at the very front of the bitmap. This is
+    // because "maximum" has to scan backwards from the end, skipping
+    // over all the empty bitmaps we've created (and we've created a lot of them)
+    uint64_t soleRemainingValue = 12345;
+
+    roaring::Roaring64Map r64;
+
+    // This will create a lot of empty Roaring 32-bit bitmaps in the Roaring64Map
+    r64.add(soleRemainingValue);
+    for (size_t i = 0; i < numValues; ++i) {
+        auto value = i * four_billion;
+        r64.add(value);
+        r64.remove(value);
+    }
+
+    if (r64.cardinality() != 1) {
+        std::cerr << "Programming error: not 1 remaining element in set\n";
+        std::exit(1);
+    }
+
+    uint64_t cycles_start, cycles_final;
+
+    RDTSC_START(cycles_start);
+    auto maximum = r64.maximum();
+    RDTSC_FINAL(cycles_final);
+    auto cyclesPerElement = double(cycles_final - cycles_start) / numValues;
+
+    RDTSC_START(cycles_start);
+    auto legacy_maximum = r64.maximum_legacy_impl();
+    RDTSC_FINAL(cycles_final);
+    auto legacy_cyclesPerElement = double(cycles_final - cycles_start) / numValues;
+
+    if (maximum != legacy_maximum || maximum != soleRemainingValue) {
+        std::cerr << "Programming error: maximum was not what was expected\n";
+        std::exit(1);
+    }
+
+    std::cout << "
+
+
+    roaring_bitmap_t *answer2  = roaring_bitmap_copy(bitmaps[0]);
+    for (size_t i = 1; i < bitmapcount; i++) {
+        roaring_bitmap_or_inplace(answer2, bitmaps[i]);
+    }
+    RDTSC_FINAL(cycles_final);
+
+
+
+
+    {
+        Timer timer("maximum");
+        for (size_t i = 0; i < numRepetitions; ++i) {
+            timer.start();
+            auto m = r.maximum();
+            if (m != soleRemainingValue) {
+                std::cerr << "That was unexpected\n";
+                exit(1);
+            }
+            timer.stop(i);
+        }
+        timer.showAverage();
+    }
+
+    {
+        Timer timer("prev-maximum");
+        for (size_t i = 0; i < numRepetitions; ++i) {
+            timer.start();
+            auto m = r.maximum_previous_impl();
+            if (m != soleRemainingValue) {
+                std::cerr << "That was unexpected\n";
+                exit(1);
+            }
+            timer.stop(i);
+        }
+        timer.showAverage();
+    }
+}
+
 
 int main() {
-    roaring::Roaring64Map qqqrrr;
 
     printf("IT IS ZAMBONI TIME\n");
     quickfull();
