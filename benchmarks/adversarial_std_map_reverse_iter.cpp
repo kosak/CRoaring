@@ -14,9 +14,10 @@ void checkMaximum(uint64_t expected, uint64_t actual) {
 }
 
 // Meta-executive summary: I cannot reliably make this benchmark prove my point.
-// Sometimes it's like 10% faster. When I change a few parameters, it's 5% slower.
-// It is not the slam-dunk I expected. I'm leaving this file here for now in
-// case there's interest. But I will probably abandon this approach.
+// Sometimes it's like 10% faster. But when I change a few parameters (like
+// increase the number of test iterations), it can become slower. This is not
+// the slam-dunk I expected. I'm leaving this file here for now in case there's
+// interest. But I will probably abandon this approach.
 //
 // Executive summary: it is faster to use std::map::iterator,
 // explicitly traveling in the reverse direction, than it is to use
@@ -140,7 +141,7 @@ I see a slowdown.
 
     // Repeat the test a few times to smooth out the measurements
     size_t numWarmupIterations = 5;
-    size_t numTestIterations = 25;
+    size_t numTestIterations = 5;
 
     // We want to space our elements 2^32 apart so the end up in different
     // map slots in the "outer" Roaring64Map. For fun I space them "almost"
