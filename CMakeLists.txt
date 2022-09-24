@@ -6,8 +6,8 @@ project(RoaringBitmap
 include(GNUInstallDirs)
 
 set(CMAKE_MACOSX_RPATH OFF)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-lto")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-lto")
 if (NOT CMAKE_BUILD_TYPE)
                 message(STATUS "No build type selected, default to Release")
                 set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
