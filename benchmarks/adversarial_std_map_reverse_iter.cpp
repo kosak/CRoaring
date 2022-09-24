@@ -18,12 +18,17 @@ void testIterationHypothesis() {
                  "inline or look through, then reverse iteration will be slower.\n\n";
 
     std::cout << "In our case, we do have such an external function, and so\n"
-                 "we *do* expect reverse iteration to be slower.\n";
+                 "we *would* expect reverse iteration to be slower.\n";
 
     std::cout << "\nFor Roaring64, currently the only case where we use reverse\n"
                  "iteration is in the implementation of maximum(), and even there\n"
                  "the difference will only be noticeable in situations where\n"
                  "there are a *lot* of empty bitmaps to skip over.\n\n";
+
+    std::cout << "\nAlso, perhaps due to cache effects, this difference is only\n"
+                 "noticeable on large data sets. On my CPU I can reliably\n"
+                 "see an improvement only when I have 50 million elements\n"
+                 "to skip over.n\n";
 
     // Repeat the test a few times to smooth out the measurements
     size_t numTestIterations = 10;
