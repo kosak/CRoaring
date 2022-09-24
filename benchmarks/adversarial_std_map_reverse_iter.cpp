@@ -45,51 +45,53 @@ void testIterationHypothesis() {
     const uint64_t four_billion = 4000000000;
     const size_t numEmptyBitmaps = 10000000;  // 10 million
 
-    // We want one remaining value at the very front of the bitmap. This is
-    // because "maximum" has to scan backwards from the end, skipping
-    // over all the empty bitmaps we've created (and we've created a lot of them)
-    uint64_t soleRemainingValue = 12345;
-
     roaring::Roaring64Map r64;
 
     // This will create a lot of empty Roaring 32-bit bitmaps in the Roaring64Map
     std::cout << "Creating " << numEmptyBitmaps << " empty bitmaps\n";
-    r64.add(soleRemainingValue);
     for (size_t i = 1; i != numEmptyBitmaps; ++i) {
         auto value = i * four_billion;
         r64.add(value);
         r64.remove(value);
     }
 
-    if (r64.cardinality() != 1) {
-        std::cerr << "Programming error: not 1 remaining element in set\n";
+    if (!r64.isEmpty()) {
+        std::cerr << "Programming error: r64 is not empty\n";
         std::exit(1);
     }
 
     // Warmups
     for (size_t warmupIter = 0; warmupIter < numWarmupIterations; ++warmupIter) {
+        auto nubbin = (uint64_t(rand()) % numEmptyBitmaps) * four_billion;
+        r64.add(nubbin);
         std::cout << "Running warmup iteration " << warmupIter << '\n';
         auto new_maximum = r64.maximum();
         auto legacy_maximum = r64.maximum_legacy_impl();
-        checkMaximum(soleRemainingValue, new_maximum);
-        checkMaximum(soleRemainingValue, legacy_maximum);
+        checkMaximum(nubbin, new_maximum);
+        checkMaximum(nubbin, legacy_maximum);
+        r64.remove(nubbin);
     }
 
     // Real tests
     uint64_t new_cycles_start, new_cycles_final;
     RDTSC_START(new_cycles_start);
     for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
+        auto nubbin = (uint64_t(rand()) % numEmptyBitmaps) * four_billion;
+        r64.add(nubbin);
         auto maximum = r64.maximum();
-        checkMaximum(soleRemainingValue, maximum);
-
+        checkMaximum(nubbin, maximum);
+        r64.remove(nubbin);
     }
     RDTSC_FINAL(new_cycles_final);
 
     uint64_t legacy_cycles_start, legacy_cycles_final;
     RDTSC_START(legacy_cycles_start);
     for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
+        auto nubbin = (uint64_t(rand()) % numEmptyBitmaps) * four_billion;
+        r64.add(nubbin);
         auto maximum = r64.maximum_legacy_impl();
-        checkMaximum(soleRemainingValue, maximum);
+        checkMaximum(nubbin, maximum);
+        r64.remove(nubbin);
     }
     RDTSC_FINAL(legacy_cycles_final);
 
