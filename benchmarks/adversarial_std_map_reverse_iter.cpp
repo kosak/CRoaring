@@ -1,7 +1,8 @@
 #define _GNU_SOURCE
+#include <random>
+#include <stdio.h>
 #include <roaring/roaring.h>
 #include "roaring64map.hh"
-#include <stdio.h>
 #include "benchmark.h"
 
 namespace {
@@ -45,59 +46,82 @@ void testIterationHypothesis() {
     const uint64_t four_billion = 4000000000;
     const size_t numEmptyBitmaps = 10000000;  // 10 million
 
-    roaring::Roaring64Map r64;
+    roaring::Roaring64Map new_r64;
+    roaring::Roaring64Map legacy_r64;
 
     // This will create a lot of empty Roaring 32-bit bitmaps in the Roaring64Map
     std::cout << "Creating " << numEmptyBitmaps << " empty bitmaps\n";
     for (size_t i = 1; i != numEmptyBitmaps; ++i) {
         auto value = i * four_billion;
-        r64.add(value);
-        r64.remove(value);
+        new_r64.add(value);
+        new_r64.remove(value);
+
+        legacy_r64.add(value);
+        legacy_r64.remove(value);
     }
 
-    if (!r64.isEmpty()) {
-        std::cerr << "Programming error: r64 is not empty\n";
+    if (!new_r64.isEmpty() || !legacy_r64.isEmpty()) {
+        std::cerr << "Programming error: r64s are not empty\n";
         std::exit(1);
     }
 
+    // Seed RNG engine with fixed number for predictability
+    std::mt19937 engine(12345);
+    std::uniform_int_distribution<uint64_t> rng(0, numEmptyBitmaps + 1);
+
     // Warmups
     for (size_t warmupIter = 0; warmupIter < numWarmupIterations; ++warmupIter) {
-        auto nubbin = (uint64_t(rand()) % numEmptyBitmaps) * four_billion;
-        r64.add(nubbin);
         std::cout << "Running warmup iteration " << warmupIter << '\n';
-        auto new_maximum = r64.maximum();
-        auto legacy_maximum = r64.maximum_legacy_impl();
-        checkMaximum(nubbin, new_maximum);
-        checkMaximum(nubbin, legacy_maximum);
-        r64.remove(nubbin);
+        auto probe = rng(engine) * four_billion;
+        new_r64.add(probe);
+        legacy_r64.add(probe);
+        auto new_maximum = new_r64.maximum();
+        auto legacy_maximum = legacy_r64.maximum_legacy_impl();
+        checkMaximum(probe, new_maximum);
+        checkMaximum(probe, legacy_maximum);
+        new_r64.remove(probe);
+        legacy_r64.remove(probe);
     }
 
     // Real tests
-    uint64_t new_cycles_start, new_cycles_final;
-    RDTSC_START(new_cycles_start);
+    uint64_t new_cycles_total = 0;
     for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
-        auto nubbin = (uint64_t(rand()) % numEmptyBitmaps) * four_billion;
-        r64.add(nubbin);
-        auto maximum = r64.maximum();
-        checkMaximum(nubbin, maximum);
-        r64.remove(nubbin);
-    }
-    RDTSC_FINAL(new_cycles_final);
+        std::cout << "Running 'new' iteration " << testIter << '\n';
+        auto probe = rng(engine) * four_billion;
 
-    uint64_t legacy_cycles_start, legacy_cycles_final;
-    RDTSC_START(legacy_cycles_start);
-    for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
-        auto nubbin = (uint64_t(rand()) % numEmptyBitmaps) * four_billion;
-        r64.add(nubbin);
-        auto maximum = r64.maximum_legacy_impl();
-        checkMaximum(nubbin, maximum);
-        r64.remove(nubbin);
+        new_r64.add(probe);
+
+        uint64_t cycles_start, cycles_final;
+        RDTSC_START(cycles_start);
+        auto maximum = new_r64.maximum();
+        RDTSC_FINAL(cycles_final);
+
+        new_cycles_total += cycles_final - cycles_start;
+
+        checkMaximum(probe, maximum);
+        new_r64.remove(probe);
     }
-    RDTSC_FINAL(legacy_cycles_final);
+
+    uint64_t legacy_cycles_total = 0;
+    for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
+        std::cout << "Running 'legacy' iteration " << testIter << '\n';
+        auto probe = rng(engine) * four_billion;
+        legacy_r64.add(probe);
+
+        uint64_t cycles_start, cycles_final;
+        RDTSC_START(cycles_start);
+        auto maximum = legacy_r64.maximum();
+        RDTSC_FINAL(cycles_final);
+
+        legacy_cycles_total += cycles_final - cycles_start;
+
+        checkMaximum(probe, maximum);
+        legacy_r64.remove(probe);
+    }
 
     auto totalElements = numEmptyBitmaps * numTestIterations;
-    auto new_cyclesPerElement = double(new_cycles_final - new_cycles_start) / totalElements;
-    auto legacy_cyclesPerElement = double(legacy_cycles_final - legacy_cycles_start) / totalElements;
+    auto new_cyclesPerElement = double(new_cycles_total) / totalElements;
+    auto legacy_cyclesPerElement = double(legacy_cycles_total) / totalElements;
 
     std::cout << "A = forward iterators moving backwards: "
               << new_cyclesPerElement << " cycles per element\n";
