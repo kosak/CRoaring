@@ -71,8 +71,7 @@ void testIterationHypothesis() {
         }
     }
 
-    // Do this a few times to smooth out the values
-
+    // Real tests
     size_t new_totalCycles = 0;
     size_t legacy_totalCycles = 0;
     size_t totalElements = 0;
