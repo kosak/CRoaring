@@ -22,6 +22,8 @@ A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 
 #include "roaring.hh"
 
+void calcKey(uint32_t);
+
 namespace roaring {
 
 using roaring::Roaring;
@@ -501,6 +503,7 @@ public:
             --iter;
             auto innerKey = iter->first;
             const auto &innerBitmap = iter->second;
+            calcKey(iter->first);
             if (!innerBitmap.isEmpty()) {
                 std::cout << "zamboni is " << zamboni << '\n';
                 return uniteBytes(innerKey, innerBitmap.maximum());
@@ -520,6 +523,7 @@ public:
         for (auto roaring_iter = roarings.crbegin();
              roaring_iter != roarings.crend(); ++roaring_iter) {
             ++zamboni;
+            calcKey(roaring_iter->first);
             if (!roaring_iter->second.isEmpty()) {
                 std::cout << "zamboni is " << zamboni << '\n';
                 return uniteBytes(roaring_iter->first,
