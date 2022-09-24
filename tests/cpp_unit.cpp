@@ -905,9 +905,23 @@ DEFINE_TEST(this_is_a_benchmark) {
         }
         auto endTime = std::chrono::system_clock::now();
         auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          endTime - startTime)
-                          .count();
-        std::cerr << "Repetition " << i << ": Elapsed time in millis: " << millis << '\n';
+                          endTime - startTime).count();
+        std::cerr << "New code: repetition " << i
+                  << ": Elapsed time in millis: " << millis << '\n';
+    }
+
+    for (size_t i = 0; i < numRepetitions; ++i) {
+        auto startTime = std::chrono::system_clock::now();
+        auto m = r.maximum_previous_impl();
+        if (m != soleRemainingValue) {
+            std::cerr << "That was unexpected\n";
+            exit(1);
+        }
+        auto endTime = std::chrono::system_clock::now();
+        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          endTime - startTime).count();
+        std::cerr << "old code: repetition " << i
+                  << ": Elapsed time in millis: " << millis << '\n';
     }
 }
 
