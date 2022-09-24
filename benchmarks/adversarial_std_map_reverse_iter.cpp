@@ -5,6 +5,13 @@
 #include "benchmark.h"
 
 namespace {
+void checkMaximum(uint64_t expected, uint64_t actual) {
+    if (expected != actual) {
+        std::cerr << "Programming error: expected " << expected << ", actual " << actual << "\n";
+        std::exit(1);
+    }
+}
+
 void testIterationHypothesis() {
     std::cout << "Hypothesis: with std::map, it is better to use forward iterators\n"
                  "(moving in the reverse direction),\n"
@@ -25,14 +32,14 @@ void testIterationHypothesis() {
                  "the difference will only be noticeable in situations where\n"
                  "there are a *lot* of empty bitmaps to skip over.\n\n";
 
-    std::cout << "\nAlso, perhaps due to cache effects, this difference is only\n"
-                 "noticeable on large data sets. On my CPU I can reliably\n"
-                 "see an improvement only when I have 50 million elements\n"
-                 "to skip over.n\n";
+    std::cout << "\nAlso, perhaps due to the vagaries of benchmarks, CPUs, cache,\n"
+                 "phase of the moon, I don't see a speedup here 100% of the time.\n"
+                 "Sometimes I see a 10% speedup, sometimes I see 0. Occasionally,\n"
+                 "I see a slowdown.\n\n";
 
     // Repeat the test a few times to smooth out the measurements
-    size_t numWarmupIterations = 3;
-    size_t numTestIterations = 10;
+    size_t numWarmupIterations = 0;
+    size_t numTestIterations = 5;
 
     // For fun, we space our elements "almost" 2^32 apart but not quite.
     const uint64_t four_billion = 4000000000;
@@ -62,45 +69,33 @@ void testIterationHypothesis() {
     // Warmups
     for (size_t warmupIter = 0; warmupIter < numWarmupIterations; ++warmupIter) {
         std::cout << "Running warmup iteration " << warmupIter << '\n';
-        auto maximum = r64.maximum();
+        auto new_maximum = r64.maximum();
         auto legacy_maximum = r64.maximum_legacy_impl();
-        if (maximum != legacy_maximum || maximum != soleRemainingValue) {
-            std::cerr
-                << "Programming error: maximum was not what was expected\n";
-            std::exit(1);
-        }
+        checkMaximum(soleRemainingValue, new_maximum);
+        checkMaximum(soleRemainingValue, legacy_maximum);
     }
 
     // Real tests
-    size_t new_totalCycles = 0;
-    size_t legacy_totalCycles = 0;
-    size_t totalElements = 0;
-
+    uint64_t new_cycles_start, new_cycles_final;
+    RDTSC_START(new_cycles_start);
     for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
-        std::cout << "Running iteration " << testIter << '\n';
-        uint64_t cycles_start, cycles_final;
-
-        RDTSC_START(cycles_start);
         auto maximum = r64.maximum();
-        RDTSC_FINAL(cycles_final);
-        new_totalCycles += cycles_final - cycles_start;
+        checkMaximum(soleRemainingValue, maximum);
 
-        RDTSC_START(cycles_start);
-        auto legacy_maximum = r64.maximum_legacy_impl();
-        RDTSC_FINAL(cycles_final);
-        legacy_totalCycles += cycles_final - cycles_start;
-
-        totalElements += numEmptyBitmaps;
-
-        if (maximum != legacy_maximum || maximum != soleRemainingValue) {
-            std::cerr
-                << "Programming error: maximum was not what was expected\n";
-            std::exit(1);
-        }
     }
+    RDTSC_FINAL(new_cycles_final);
 
-    auto new_cyclesPerElement = double(new_totalCycles) / totalElements;
-    auto legacy_cyclesPerElement = double(legacy_totalCycles) / totalElements;
+    uint64_t legacy_cycles_start, legacy_cycles_final;
+    RDTSC_START(legacy_cycles_start);
+    for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
+        auto maximum = r64.maximum_legacy_impl();
+        checkMaximum(soleRemainingValue, maximum);
+    }
+    RDTSC_FINAL(legacy_cycles_final);
+
+    auto totalElements = numEmptyBitmaps * numTestIterations;
+    auto new_cyclesPerElement = double(new_cycles_final - new_cycles_start) / totalElements;
+    auto legacy_cyclesPerElement = double(legacy_cycles_final - legacy_cycles_start) / totalElements;
 
     std::cout << "A = forward iterators moving backwards: "
               << new_cyclesPerElement << " cycles per element\n";
