@@ -49,10 +49,14 @@ void testIterationHypothesis() {
     roaring::Roaring64Map new_r64;
     roaring::Roaring64Map legacy_r64;
 
+    // Seed RNG engine with fixed number for predictability
+    std::mt19937 engine(12345);
+    std::uniform_int_distribution<uint64_t> rng(0, numEmptyBitmaps + 1);
+
     // This will create a lot of empty Roaring 32-bit bitmaps in the Roaring64Map
     std::cout << "Creating " << numEmptyBitmaps << " empty bitmaps\n";
-    for (size_t i = 1; i != numEmptyBitmaps; ++i) {
-        auto value = i * four_billion;
+    for (size_t i = 0; i != numEmptyBitmaps; ++i) {
+        auto value = rng(engine) * four_billion;
         new_r64.add(value);
         new_r64.remove(value);
 
@@ -65,9 +69,6 @@ void testIterationHypothesis() {
         std::exit(1);
     }
 
-    // Seed RNG engine with fixed number for predictability
-    std::mt19937 engine(12345);
-    std::uniform_int_distribution<uint64_t> rng(0, numEmptyBitmaps + 1);
 
     // Warmups
     for (size_t warmupIter = 0; warmupIter < numWarmupIterations; ++warmupIter) {
@@ -86,8 +87,9 @@ void testIterationHypothesis() {
     // Real tests
     uint64_t new_cycles_total = 0;
     for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
-        std::cout << "Running 'new' iteration " << testIter << '\n';
         auto probe = rng(engine) * four_billion;
+        std::cout << "Running 'new' iteration " << testIter
+                  << ". Probe is " << probe << '\n';
 
         new_r64.add(probe);
 
@@ -104,8 +106,10 @@ void testIterationHypothesis() {
 
     uint64_t legacy_cycles_total = 0;
     for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
-        std::cout << "Running 'legacy' iteration " << testIter << '\n';
         auto probe = rng(engine) * four_billion;
+        std::cout << "Running 'legacy' iteration " << testIter
+                  << ". Probe is " << probe << '\n';
+
         legacy_r64.add(probe);
 
         uint64_t cycles_start, cycles_final;
@@ -119,15 +123,62 @@ void testIterationHypothesis() {
         legacy_r64.remove(probe);
     }
 
+    // Real tests
+    uint64_t new_cycles_total2 = 0;
+    for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
+        auto probe = rng(engine) * four_billion;
+        std::cout << "Running 'new' iteration 2 " << testIter
+                  << ". Probe is " << probe << '\n';
+
+        new_r64.add(probe);
+
+        uint64_t cycles_start, cycles_final;
+        RDTSC_START(cycles_start);
+        auto maximum = new_r64.maximum();
+        RDTSC_FINAL(cycles_final);
+
+        new_cycles_total2 += cycles_final - cycles_start;
+
+        checkMaximum(probe, maximum);
+        new_r64.remove(probe);
+    }
+
+    uint64_t legacy_cycles_total2 = 0;
+    for (size_t testIter = 0; testIter < numTestIterations; ++testIter) {
+        auto probe = rng(engine) * four_billion;
+        std::cout << "Running 'legacy' iteration 2 " << testIter
+                  << ". Probe is " << probe << '\n';
+
+        legacy_r64.add(probe);
+
+        uint64_t cycles_start, cycles_final;
+        RDTSC_START(cycles_start);
+        auto maximum = legacy_r64.maximum();
+        RDTSC_FINAL(cycles_final);
+
+        legacy_cycles_total2 += cycles_final - cycles_start;
+
+        checkMaximum(probe, maximum);
+        legacy_r64.remove(probe);
+    }
+
     auto totalElements = numEmptyBitmaps * numTestIterations;
     auto new_cyclesPerElement = double(new_cycles_total) / totalElements;
+    auto new_cyclesPerElement2 = double(new_cycles_total2) / totalElements;
     auto legacy_cyclesPerElement = double(legacy_cycles_total) / totalElements;
+    auto legacy_cyclesPerElement2 = double(legacy_cycles_total2) / totalElements;
 
     std::cout << "A = forward iterators moving backwards: "
               << new_cyclesPerElement << " cycles per element\n";
 
-    std::cout << "B = reverse iterators: " << legacy_cyclesPerElement
-              << " cycles per element\n";
+    std::cout << "B = reverse iterators: "
+              << legacy_cyclesPerElement << " cycles per element\n";
+
+    std::cout << "C = like A but again: "
+              << new_cyclesPerElement2 << " cycles per element\n";
+
+    std::cout << "D = like B but again: "
+              << legacy_cyclesPerElement2 << " cycles per element\n";
 
     std::cout << "Ratio (A/B) = " << new_cyclesPerElement / legacy_cyclesPerElement
               << " (if materially < 1.0, then the hypothesis is confirmed)\n"
