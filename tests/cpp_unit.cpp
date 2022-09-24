@@ -946,7 +946,7 @@ DEFINE_TEST(this_is_a_benchmark) {
         Timer timer("prev-maximum");
         for (size_t i = 0; i < numRepetitions; ++i) {
             timer.start();
-            auto m = r.maximum_previous_impl();
+            auto m = r.maximum_legacy_impl();
             if (m != soleRemainingValue) {
                 std::cerr << "That was unexpected\n";
                 exit(1);
