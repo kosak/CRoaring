@@ -497,17 +497,12 @@ public:
         // See https://stackoverflow.com/questions/889262/iterator-vs-reverse-iterator
         // and https://en.cppreference.com/w/cpp/iterator/reverse_iterator
 
-        int zamboni = 0;
-
         auto iter = roarings.end();
         while (iter != roarings.begin()) {
-            ++zamboni;
             --iter;
             auto innerKey = iter->first;
             const auto &innerBitmap = iter->second;
-            // calcKey(&innerBitmap);
             if (!innerBitmap.isEmpty()) {
-                std::cout << "zamboni is " << zamboni << '\n';
                 return uniteBytes(innerKey, innerBitmap.maximum());
             }
         }
@@ -521,13 +516,9 @@ public:
      * Return the largest value (if not empty).
      */
     uint64_t maximum_previous_impl() const {
-        int zamboni = 0;
         for (auto roaring_iter = roarings.crbegin();
              roaring_iter != roarings.crend(); ++roaring_iter) {
-            ++zamboni;
-            // calcKey(&roaring_iter->second);
             if (!roaring_iter->second.isEmpty()) {
-                std::cout << "zamboni is " << zamboni << '\n';
                 return uniteBytes(roaring_iter->first,
                                   roaring_iter->second.maximum());
             }

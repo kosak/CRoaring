@@ -912,7 +912,7 @@ class Timer {
 DEFINE_TEST(this_is_a_benchmark) {
     const uint64_t four_billion = 4000000000;
 
-    const size_t numValues = 10000000;  // 10 million
+    const size_t numValues = 50000000;  // 50 million
 
     uint64_t soleRemainingValue = 12345;
 
