@@ -31,6 +31,7 @@ void testIterationHypothesis() {
                  "to skip over.n\n";
 
     // Repeat the test a few times to smooth out the measurements
+    size_t numWarmupIterations = 3;
     size_t numTestIterations = 10;
 
     // For fun, we space our elements "almost" 2^32 apart but not quite.
@@ -56,6 +57,18 @@ void testIterationHypothesis() {
     if (r64.cardinality() != 1) {
         std::cerr << "Programming error: not 1 remaining element in set\n";
         std::exit(1);
+    }
+
+    // Warmups
+    for (size_t warmupIter = 0; warmupIter < numWarmupIterations; ++warmupIter) {
+        std::cout << "Running warmup iteration " << warmupIter << '\n';
+        auto maximum = r64.maximum();
+        auto legacy_maximum = r64.maximum_legacy_impl();
+        if (maximum != legacy_maximum || maximum != soleRemainingValue) {
+            std::cerr
+                << "Programming error: maximum was not what was expected\n";
+            std::exit(1);
+        }
     }
 
     // Do this a few times to smooth out the values
