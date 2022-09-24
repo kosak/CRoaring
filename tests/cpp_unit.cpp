@@ -878,10 +878,41 @@ std::pair<doublechecked::Roaring64Map, doublechecked::Roaring64Map>
     return std::make_pair(std::move(roaring1), std::move(roaring2));
 }
 
+class Timer {
+   public:
+    explicit Timer(const char *what) {
+        std::cout << "Starting test for " << what << '\n';
+    }
+
+    void start() {
+        startTime_ = std::chrono::system_clock::now();
+    }
+
+    void stop(size_t iteration) {
+        auto endTime = std::chrono::system_clock::now();
+        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          endTime - startTime_).count();
+        std::cout << "Iteration " << iteration
+                  << ": millis: " << millis
+                  << '\n';
+        totalMillis_ += millis;
+        ++numIterations_;
+    }
+
+    void showAverage() const {
+        std::cout << "Average runtime " << (double)totalMillis_/numIterations_ << '\n';
+    }
+
+   private:
+    std::chrono::system_clock::time_point startTime_;
+    size_t totalMillis_ = 0;
+    size_t numIterations_ = 0;
+};
+
 DEFINE_TEST(this_is_a_benchmark) {
     const uint64_t four_billion = 4000000000;
 
-    const size_t numValues = 50000000;  // 50 million
+    const size_t numValues = 10000000;  // 10 million
 
     uint64_t soleRemainingValue = 12345;
 
@@ -897,32 +928,32 @@ DEFINE_TEST(this_is_a_benchmark) {
 
     r.add(soleRemainingValue);
 
-    for (size_t i = 0; i < numRepetitions; ++i) {
-        auto startTime = std::chrono::system_clock::now();
-        auto m = r.maximum();
-        if (m != soleRemainingValue) {
-            std::cerr << "That was unexpected\n";
-            exit(1);
+    {
+        Timer timer("maximum");
+        for (size_t i = 0; i < numRepetitions; ++i) {
+            timer.start();
+            auto m = r.maximum();
+            if (m != soleRemainingValue) {
+                std::cerr << "That was unexpected\n";
+                exit(1);
+            }
+            timer.stop(i);
         }
-        auto endTime = std::chrono::system_clock::now();
-        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          endTime - startTime).count();
-        std::cerr << "New code: repetition " << i
-                  << ": Elapsed time in millis: " << millis << '\n';
+        timer.showAverage();
     }
 
-    for (size_t i = 0; i < numRepetitions; ++i) {
-        auto startTime = std::chrono::system_clock::now();
-        auto m = r.maximum_previous_impl();
-        if (m != soleRemainingValue) {
-            std::cerr << "That was unexpected\n";
-            exit(1);
+    {
+        Timer timer("prev-maximum");
+        for (size_t i = 0; i < numRepetitions; ++i) {
+            timer.start();
+            auto m = r.maximum_previous_impl();
+            if (m != soleRemainingValue) {
+                std::cerr << "That was unexpected\n";
+                exit(1);
+            }
+            timer.stop(i);
         }
-        auto endTime = std::chrono::system_clock::now();
-        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          endTime - startTime).count();
-        std::cerr << "old code: repetition " << i
-                  << ": Elapsed time in millis: " << millis << '\n';
+        timer.showAverage();
     }
 }
 
