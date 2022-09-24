@@ -893,6 +893,7 @@ DEFINE_TEST(this_is_a_benchmark) {
         r.add(value);
         r.remove(value);
     }
+    std::cerr << "cardinality is " << r.cardinality() << '\n';
 
     r.add(soleRemainingValue);
 
