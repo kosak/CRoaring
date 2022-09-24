@@ -916,7 +916,7 @@ DEFINE_TEST(this_is_a_benchmark) {
 
     uint64_t soleRemainingValue = 12345;
 
-    const size_t numRepetitions = 10;
+    const size_t numRepetitions = 20;
 
     Roaring64Map r;
     for (size_t i = 0; i < numValues; ++i) {
