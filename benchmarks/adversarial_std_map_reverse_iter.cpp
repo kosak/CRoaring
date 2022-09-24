@@ -36,7 +36,7 @@ void testIterationHypothesis() {
 
     // For fun, we space our elements "almost" 2^32 apart but not quite.
     const uint64_t four_billion = 4000000000;
-    const size_t numEmptyBitmaps = 50000000;  // 50 million
+    const size_t numEmptyBitmaps = 10000000;  // 10 million
 
     // We want one remaining value at the very front of the bitmap. This is
     // because "maximum" has to scan backwards from the end, skipping
