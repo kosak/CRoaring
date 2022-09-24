@@ -38,8 +38,8 @@ void testIterationHypothesis() {
                  "I see a slowdown.\n\n";
 
     // Repeat the test a few times to smooth out the measurements
-    size_t numWarmupIterations = 0;
-    size_t numTestIterations = 5;
+    size_t numWarmupIterations = 3;
+    size_t numTestIterations = 10;
 
     // For fun, we space our elements "almost" 2^32 apart but not quite.
     const uint64_t four_billion = 4000000000;
