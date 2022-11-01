@@ -883,8 +883,6 @@ DEFINE_TEST(test_cpp_union_64) {
     const auto &rhs = twoMaps.second;
 
     lhs |= rhs;
-    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
-
     assert_true(lhs.does_std_set_match_roaring());
 }
 
@@ -895,8 +893,6 @@ DEFINE_TEST(test_cpp_intersect_64) {
     const auto &rhs = twoMaps.second;
 
     lhs &= rhs;
-    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
-
     assert_true(lhs.does_std_set_match_roaring());
 }
 
@@ -907,8 +903,6 @@ DEFINE_TEST(test_cpp_difference_64) {
     const auto &rhs = twoMaps.second;
 
     lhs -= rhs;
-    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
-
     assert_true(lhs.does_std_set_match_roaring());
 }
 
@@ -919,8 +913,6 @@ DEFINE_TEST(test_cpp_xor_64) {
     const auto &rhs = twoMaps.second;
 
     lhs ^= rhs;
-    std::cerr << "lhs has cardinality " << lhs.cardinality() << '\n';
-
     assert_true(lhs.does_std_set_match_roaring());
 }
 
