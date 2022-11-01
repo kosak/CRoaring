@@ -322,12 +322,12 @@ public:
         // Logic table summarizing what to do when a given outer key is
         // present vs. absent from self and other.
         //
-        // self     other    operation
-        // ---------------------------
-        // absent   absent   Do nothing
-        // absent   present  Do nothing
-        // present  absent   Erase the 'self' inner bitmap entry.
-        // present  present  Intersect 'self' bitmap with 'other' bitmap
+        // self     other    (self & other)  work to do
+        // --------------------------------------------
+        // absent   absent   empty           None
+        // absent   present  empty           None
+        // present  absent   empty           Erase the 'self' bitmap
+        // present  present  non-empty       Intersect 'self' with 'other'
         //
         // Because we only have work to do when a key is present in 'self', it
         // makes sense for the code to be organized by iterating over the keys
@@ -492,6 +492,20 @@ public:
             roarings.clear();
             return *this;
         }
+
+        // Logic table summarizing what to do when a given outer key is
+        // present vs. absent from self and other.
+        //
+        // self     other    operation
+        // ---------------------------
+        // absent   absent   Do nothing
+        // absent   present  Copy 'other' bitmap to 'self' bitmap and set flags
+        // present  absent   Do nothing
+        // present  present  XOR 'other' bitmap into 'self' bitmap.
+        //
+        // Because we only have work to do when a key is present in 'other', it
+        // makes sense for the code to be organized by iterating over the keys
+        // in 'other'.
 
         for (const auto &other_entry : other.roarings) {
             const auto &other_bitmap = other_entry.second;
