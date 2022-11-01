@@ -848,24 +848,30 @@ std::pair<doublechecked::Roaring64Map, doublechecked::Roaring64Map>
         auto choice = rng(engine) % 4;
         switch (choice) {
             case 0: {
+                // Value is added only to set 1.
                 roaring1.add(value);
                 break;
             }
 
             case 1: {
+                // Value is added only to set 2.
                 roaring2.add(value);
                 break;
             }
 
             case 2: {
+                // Value is added to both sets.
                 roaring1.add(value);
                 roaring2.add(value);
                 break;
             }
 
             case 3: {
+                // Value is added to set 1, and a slightly different value
+                // is added to set 2. This makes it likely that they are in
+                // the same "outer" bin, but at a different "inner" position.
                 roaring1.add(value);
-                roaring2.add(value + 5);
+                roaring2.add(value + 1);
                 break;
             }
 

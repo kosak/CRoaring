@@ -319,6 +319,20 @@ public:
             return *this;
         }
 
+        // Logic table summarizing what to do when a given outer key is
+        // present vs. absent from self and other.
+        //
+        // self     other    operation
+        // ---------------------------
+        // absent   absent   Do nothing
+        // absent   present  Do nothing
+        // present  absent   Erase the 'self' inner bitmap entry.
+        // present  present  Intersect 'self' bitmap with 'other' bitmap
+        //
+        // Because we only have work to do when a key is present in 'self', it
+        // makes sense for the code to be organized by iterating over the keys
+        // in 'self'.
+
         decltype(roarings.begin()) self_next;
         for (auto self_iter = roarings.begin(); self_iter != roarings.end();
              self_iter = self_next) {
@@ -363,10 +377,19 @@ public:
             return *this;
         }
 
-        // For the difference operation we only care about entries where there
-        // is an outer key present in both *this and other. We use this
-        // algorithm to try to quickly advance to such matches rather than
-        // iterating over the whole collection.
+        // Logic table summarizing what to do when a given outer key is
+        // present vs. absent from self and other.
+        //
+        // self     other    operation
+        // ---------------------------
+        // absent   absent   Do nothing
+        // absent   present  Do nothing
+        // present  absent   Do nothing
+        // present  present  Subtract 'other' bitmap from 'self' bitmap
+        //
+        // Because we only have work to do when a key is present in both 'self'
+        // and 'other', it makes sense for the code to be organize to quickly
+        // find keys that are present in both.
         auto self_iter = roarings.begin();
         auto other_iter = other.roarings.cbegin();
 
@@ -375,15 +398,15 @@ public:
             auto self_key = self_iter->first;
             auto other_key = other_iter->first;
             if (self_key < other_key) {
-                // Advance self_iter to a point where self_key >= other_key
-                // (or end).
+                // Because self_key is < other_key, advance self_iter to a point
+                // where self_key >= other_key (or end).
                 self_iter = roarings.lower_bound(other_key);
                 continue;
             }
 
             if (self_key > other_key) {
-                // Advance other_iter to a point where other_key >= self_key
-                // (or end).
+                // Because self_key is > other_key, advance other_iter to a point
+                // where other_key >= self_key (or end).
                 other_iter = other.roarings.lower_bound(self_key);
                 continue;
             }
@@ -417,6 +440,20 @@ public:
             // ORing *this with itself is a no-op.
             return *this;
         }
+
+        // Logic table summarizing what to do when a given outer key is
+        // present vs. absent from self and other.
+        //
+        // self     other    operation
+        // ---------------------------
+        // absent   absent   Do nothing
+        // absent   present  Copy 'other' bitmap to 'self' bitmap and set flags
+        // present  absent   Do nothing
+        // present  present  Union 'other' bitmap into 'self' bitmap.
+        //
+        // Because we only have work to do when a key is present in 'other', it
+        // makes sense for the code to be organized by iterating over the keys
+        // in 'other'.
 
         for (const auto &other_entry : other.roarings) {
             const auto &other_bitmap = other_entry.second;
