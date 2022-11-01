@@ -315,15 +315,15 @@ public:
      */
     Roaring64Map &operator&=(const Roaring64Map &other) {
         if (this == &other) {
-            // ANDing with ourself is a no-op.
+            // ANDing *this with itself is a no-op.
             return *this;
         }
 
-        auto self_next = roarings.begin();  // Placeholder value, replaced below
+        decltype(roarings.begin()) self_next;
         for (auto self_iter = roarings.begin(); self_iter != roarings.end();
              self_iter = self_next) {
-            // Do the 'next' operation early because we might invalidate
-            // self_iter down below with the 'erase' operation.
+            // Do the 'next' operation now, so we don't have to worry about
+            // invalidation of self_iter down below with the 'erase' operation.
             self_next = std::next(self_iter);
 
             auto self_key = self_iter->first;
@@ -338,12 +338,13 @@ public:
                 continue;
             }
 
-            // Both sides have self_key so we need to compute the intersection.
+            // Both sides have self_key so we need to compute the intersection
+            // of their inner bitmaps.
             const auto &other_bitmap = other_iter->second;
             self_bitmap &= other_bitmap;
             if (self_bitmap.isEmpty()) {
-                // The intersection operation has resulted in an empty bitmap.
-                // So remove it from the map altogether.
+                // However, the intersection has resulted in an empty bitmap.
+                // So might as well remove it from the map altogether.
                 roarings.erase(self_iter);
             }
         }
@@ -357,38 +358,49 @@ public:
      */
     Roaring64Map &operator-=(const Roaring64Map &other) {
         if (this == &other) {
-            // Subtracting from ourself results in the empty map.
+            // Subtracting *this from itself results in the empty map.
             roarings.clear();
             return *this;
         }
 
-        auto self_next = roarings.begin();  // Placeholder value, replaced below
-        for (auto self_iter = roarings.begin(); self_iter != roarings.end();
-             self_iter = self_next) {
-            // Do the 'next' operation early because we might invalidate
-            // self_iter down below with the 'erase' operation.
-            self_next = std::next(self_iter);
+        // For the difference operation we only care about entries where there
+        // is an outer key present in both *this and other. We use this
+        // algorithm to try to quickly advance to such matches rather than
+        // iterating over the whole collection.
+        auto self_iter = roarings.begin();
+        auto other_iter = other.roarings.cbegin();
 
+        while (self_iter != roarings.end() &&
+               other_iter != other.roarings.cend()) {
             auto self_key = self_iter->first;
-            auto &self_bitmap = self_iter->second;
-
-            auto other_iter = other.roarings.find(self_key);
-            if (other_iter == other.roarings.end()) {
-                // 'other' doesn't have self_key. This means that the
-                // self_bitmap can be left alone (there is nothing to subtract
-                // from it) and we can move on.
+            auto other_key = other_iter->first;
+            if (self_key < other_key) {
+                // Advance self_iter to a point where self_key >= other_key
+                // (or end).
+                self_iter = roarings.lower_bound(other_key);
                 continue;
             }
 
-            // Both sides have self_key so we need to compute the difference.
+            if (self_key > other_key) {
+                // Advance other_iter to a point where other_key >= self_key
+                // (or end).
+                other_iter = other.roarings.lower_bound(self_key);
+                continue;
+            }
+
+            // self_key == other_key
+            auto &self_bitmap = self_iter->second;
             const auto &other_bitmap = other_iter->second;
             self_bitmap -= other_bitmap;
 
             // If the difference operation caused the inner bitmap to become
-            // empty, remove it from the map.
+            // empty, remove it from the map. In any case, advance both iters.
             if (self_bitmap.isEmpty()) {
-                roarings.erase(self_iter);
+                self_iter = roarings.erase(self_iter);
+            } else {
+                ++self_iter;
             }
+            ++other_iter;
         }
         return *this;
     }
@@ -402,7 +414,7 @@ public:
      */
     Roaring64Map &operator|=(const Roaring64Map &other) {
         if (this == &other) {
-            // ORing with ourself is a no-op.
+            // ORing *this with itself is a no-op.
             return *this;
         }
 
@@ -439,7 +451,7 @@ public:
      */
     Roaring64Map &operator^=(const Roaring64Map &other) {
         if (this == &other) {
-            // XORing with ourself results in the empty map.
+            // XORing *this with itself results in the empty map.
             roarings.clear();
             return *this;
         }
@@ -465,7 +477,7 @@ public:
             }
 
             // Key was already present in self, so insert not performed.
-            // So we have to union the other bitmap with self.
+            // So we have to XOR the other bitmap with self.
             self_bitmap ^= other_bitmap;
 
             // The XOR operation might have caused the inner Roaring to become
