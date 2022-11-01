@@ -326,8 +326,9 @@ public:
         // --------------------------------------------
         // absent   absent   empty           None
         // absent   present  empty           None
-        // present  absent   empty           Erase the 'self' bitmap
-        // present  present  non-empty       Intersect 'self' with 'other'
+        // present  absent   empty           Erase self
+        // present  present  modified        Intersect self with other, but
+        //                                   erase self if result is empty.
         //
         // Because we only have work to do when a key is present in 'self', it
         // makes sense for the code to be organized by iterating over the keys
@@ -380,16 +381,17 @@ public:
         // Logic table summarizing what to do when a given outer key is
         // present vs. absent from self and other.
         //
-        // self     other    operation
-        // ---------------------------
-        // absent   absent   Do nothing
-        // absent   present  Do nothing
-        // present  absent   Do nothing
-        // present  present  Subtract 'other' bitmap from 'self' bitmap
+        // self     other    (self - other)  work to do
+        // --------------------------------------------
+        // absent   absent   empty           None
+        // absent   present  empty           None
+        // present  absent   unchanged       None
+        // present  present  modified        Subtract other from self, but
+        //                                   erase self if result is empty
         //
         // Because we only have work to do when a key is present in both 'self'
-        // and 'other', it makes sense for the code to be organize to quickly
-        // find keys that are present in both.
+        // and 'other', it makes sense for the code to be organized so that it
+        // quickly finds those keys that are present in both.
         auto self_iter = roarings.begin();
         auto other_iter = other.roarings.cbegin();
 
@@ -444,12 +446,12 @@ public:
         // Logic table summarizing what to do when a given outer key is
         // present vs. absent from self and other.
         //
-        // self     other    operation
-        // ---------------------------
-        // absent   absent   Do nothing
-        // absent   present  Copy 'other' bitmap to 'self' bitmap and set flags
-        // present  absent   Do nothing
-        // present  present  Union 'other' bitmap into 'self' bitmap.
+        // self     other    (self | other)  work to do
+        // --------------------------------------------
+        // absent   absent   empty           None
+        // absent   present  modified        Copy other to self and set flags
+        // present  absent   unchanged       None
+        // present  present  modified        self |= other
         //
         // Because we only have work to do when a key is present in 'other', it
         // makes sense for the code to be organized by iterating over the keys
@@ -496,12 +498,13 @@ public:
         // Logic table summarizing what to do when a given outer key is
         // present vs. absent from self and other.
         //
-        // self     other    operation
-        // ---------------------------
-        // absent   absent   Do nothing
-        // absent   present  Copy 'other' bitmap to 'self' bitmap and set flags
-        // present  absent   Do nothing
-        // present  present  XOR 'other' bitmap into 'self' bitmap.
+        // self     other    (self ^ other)  work to do
+        // --------------------------------------------
+        // absent   absent   empty           None
+        // absent   present  modified        Copy other to self and set flags
+        // present  absent   unchanged       None
+        // present  present  modified        XOR other into self, but erase self
+        //                                   if result is empty.
         //
         // Because we only have work to do when a key is present in 'other', it
         // makes sense for the code to be organized by iterating over the keys
