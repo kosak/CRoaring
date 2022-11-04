@@ -389,8 +389,8 @@ public:
         //                                   erase self if result is empty
         //
         // Because there is only work to do when a key is present in both 'self'
-        // and 'other', we design a loop that ping-pongs back and forth until
-        // it finds a key present on both sides.
+        // and 'other', the main while loop ping-pongs back and forth until it
+        // finds the next key that is the same on both sides.
 
         auto self_iter = roarings.begin();
         auto other_iter = other.roarings.cbegin();
@@ -400,15 +400,15 @@ public:
             auto self_key = self_iter->first;
             auto other_key = other_iter->first;
             if (self_key < other_key) {
-                // Because self_key is < other_key, advance self_iter to a point
-                // where self_key >= other_key (or end).
+                // Because self_key is < other_key, advance self_iter to the
+                // first point where self_key >= other_key (or end).
                 self_iter = roarings.lower_bound(other_key);
                 continue;
             }
 
             if (self_key > other_key) {
-                // Because self_key is > other_key, advance other_iter to a point
-                // where other_key >= self_key (or end).
+                // Because self_key is > other_key, advance other_iter to the
+                // first point where other_key >= self_key (or end).
                 other_iter = other.roarings.lower_bound(self_key);
                 continue;
             }
@@ -471,17 +471,16 @@ public:
             if (insert_happened) {
                 // Key was not present in self, so insert was performed above.
                 // In the logic table above, this reflects the case
-                // (self.absent | other.present) == other
-                // Because the copy has already happened, thanks to the 'insert'
-                // operation above, we just need to set the copyOnWrite flag.
+                // (self.absent | other.present). Because the copy has already
+                // happened, thanks to the 'insert' operation above, we just
+                // need to set the copyOnWrite flag.
                 self_bitmap.setCopyOnWrite(copyOnWrite);
                 continue;
             }
 
-            // Key was already present in self, so insert was not performed.
-            // In the logic table above, this reflects the case
-            // (self.present | other.present) == self | other
-            // So we have to OR the other bitmap into self.
+            // Both sides have self_key, and the insert was not performed. In
+            // the logic table above, this reflects the case
+            // (self.present & other.present). So OR other into self.
             self_bitmap |= other_bitmap;
         }
         return *this;
@@ -526,26 +525,20 @@ public:
             if (insert_happened) {
                 // Key was not present in self, so insert was performed above.
                 // In the logic table above, this reflects the case
-                // (self.absent ^ other.present) == other
-                // Because the copy has already happened, thanks to the 'insert'
-                // operation above, we just need to set the copyOnWrite flag.
-
-                // Key not present in self, so insert was performed, reflecting
-                // the operation (empty ^ X) == X
-                // The bitmap has been copied, so we just need to set the
-                // copyOnWrite flag.
+                // (self.absent | other.present). Because the copy has already
+                // happened, thanks to the 'insert' operation above, we just
+                // need to set the copyOnWrite flag.
                 self_bitmap.setCopyOnWrite(copyOnWrite);
                 continue;
             }
 
-            // Key was already present in self, so insert not performed.
-            // So we have to XOR the other bitmap with self.
+            // Both sides have self_key, and the insert was not performed. In
+            // the logic table above, this reflects the case
+            // (self.present ^ other.present). So XOR other into self.
             self_bitmap ^= other_bitmap;
 
-            // The XOR operation might have caused the inner Roaring to become
-            // empty (if self_bitmap == other_bitmap). If so, remove it from the
-            // map.
             if (self_bitmap.isEmpty()) {
+                // ...but if intersection is empty, remove it altogether.
                 roarings.erase(self_iter);
             }
         }
