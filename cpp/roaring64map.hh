@@ -327,12 +327,11 @@ public:
         // absent   absent   empty           None
         // absent   present  empty           None
         // present  absent   empty           Erase self
-        // present  present  modified        Intersect self with other, but
+        // present  present  empty or not    Intersect self with other, but
         //                                   erase self if result is empty.
         //
-        // Because we only have work to do when a key is present in 'self', it
-        // makes sense for the code to be organized by iterating over the keys
-        // in 'self'.
+        // Because there is only work to do when a key is present in 'self', the
+        // main for loop iterates over entries in 'self'.
 
         decltype(roarings.begin()) self_next;
         for (auto self_iter = roarings.begin(); self_iter != roarings.end();
@@ -346,20 +345,20 @@ public:
 
             auto other_iter = other.roarings.find(self_key);
             if (other_iter == other.roarings.end()) {
-                // 'other' doesn't have self_key. This means that the result of
-                // the intersection is empty and self should erase its whole
-                // inner bitmap here.
+                // 'other' doesn't have self_key. In the logic table above,
+                // this reflects the case (self.present & other.absent).
+                // So, erase self.
                 roarings.erase(self_iter);
                 continue;
             }
 
-            // Both sides have self_key so we need to compute the intersection
-            // of their inner bitmaps.
+            // Both sides have self_key. In the logic table above, this reflects
+            // the case (self.present & other.present). So, intersect self with
+            // other.
             const auto &other_bitmap = other_iter->second;
             self_bitmap &= other_bitmap;
             if (self_bitmap.isEmpty()) {
-                // However, the intersection has resulted in an empty bitmap.
-                // So might as well remove it from the map altogether.
+                // ...but if intersection is empty, remove it altogether.
                 roarings.erase(self_iter);
             }
         }
@@ -386,12 +385,13 @@ public:
         // absent   absent   empty           None
         // absent   present  empty           None
         // present  absent   unchanged       None
-        // present  present  modified        Subtract other from self, but
+        // present  present  empty or not    Subtract other from self, but
         //                                   erase self if result is empty
         //
-        // Because we only have work to do when a key is present in both 'self'
-        // and 'other', it makes sense for the code to be organized so that it
-        // quickly finds those keys that are present in both.
+        // Because there is only work to do when a key is present in both 'self'
+        // and 'other', we design a loop that ping-pongs back and forth until
+        // it finds a key present on both sides.
+
         auto self_iter = roarings.begin();
         auto other_iter = other.roarings.cbegin();
 
@@ -413,14 +413,15 @@ public:
                 continue;
             }
 
-            // self_key == other_key
+            // Both sides have self_key. In the logic table above, this reflects
+            // the case (self.present & other.present). So subtract other from
+            // self.
             auto &self_bitmap = self_iter->second;
             const auto &other_bitmap = other_iter->second;
             self_bitmap -= other_bitmap;
 
-            // If the difference operation caused the inner bitmap to become
-            // empty, remove it from the map. In any case, advance both iters.
             if (self_bitmap.isEmpty()) {
+                // ...but if subtraction is empty, remove it altogether.
                 self_iter = roarings.erase(self_iter);
             } else {
                 ++self_iter;
@@ -449,36 +450,38 @@ public:
         // self     other    (self | other)  work to do
         // --------------------------------------------
         // absent   absent   empty           None
-        // absent   present  modified        Copy other to self and set flags
+        // absent   present  not empty       Copy other to self and set flags
         // present  absent   unchanged       None
-        // present  present  modified        self |= other
+        // present  present  not empty       self |= other
         //
-        // Because we only have work to do when a key is present in 'other', it
-        // makes sense for the code to be organized by iterating over the keys
-        // in 'other'.
+        // Because there is only work to do when a key is present in 'other',
+        // the main for loop iterates over entries in 'other'.
 
         for (const auto &other_entry : other.roarings) {
             const auto &other_bitmap = other_entry.second;
 
             // Try to insert other_bitmap into self at other_key. We take
-            // advantage of the fact that insert will not overwrite an
-            // existing key.
+            // advantage of the fact that std::map::insert will not overwrite an
+            // existing entry.
             auto insert_result = roarings.insert(other_entry);
             auto self_iter = insert_result.first;
             auto insert_happened = insert_result.second;
             auto &self_bitmap = self_iter->second;
 
             if (insert_happened) {
-                // Key not present in self, so insert was performed, reflecting
-                // the operation (empty | X) == X
-                // The bitmap has been copied, so we just need to set the
-                // copyOnWrite flag.
+                // Key was not present in self, so insert was performed above.
+                // In the logic table above, this reflects the case
+                // (self.absent | other.present) == other
+                // Because the copy has already happened, thanks to the 'insert'
+                // operation above, we just need to set the copyOnWrite flag.
                 self_bitmap.setCopyOnWrite(copyOnWrite);
                 continue;
             }
 
-            // Key was already present in self, so insert not performed.
-            // So we have to union the other bitmap with self.
+            // Key was already present in self, so insert was not performed.
+            // In the logic table above, this reflects the case
+            // (self.present | other.present) == self | other
+            // So we have to OR the other bitmap into self.
             self_bitmap |= other_bitmap;
         }
         return *this;
@@ -501,27 +504,32 @@ public:
         // self     other    (self ^ other)  work to do
         // --------------------------------------------
         // absent   absent   empty           None
-        // absent   present  modified        Copy other to self and set flags
+        // absent   present  non-empty       Copy other to self and set flags
         // present  absent   unchanged       None
-        // present  present  modified        XOR other into self, but erase self
+        // present  present  empty or not    XOR other into self, but erase self
         //                                   if result is empty.
         //
-        // Because we only have work to do when a key is present in 'other', it
-        // makes sense for the code to be organized by iterating over the keys
-        // in 'other'.
+        // Because there is only work to do when a key is present in 'other',
+        // the main for loop iterates over entries in 'other'.
 
         for (const auto &other_entry : other.roarings) {
             const auto &other_bitmap = other_entry.second;
 
             // Try to insert other_bitmap into self at other_key. We take
-            // advantage of the fact that insert will not overwrite an
-            // existing key.
+            // advantage of the fact that std::map::insert will not overwrite an
+            // existing entry.
             auto insert_result = roarings.insert(other_entry);
             auto self_iter = insert_result.first;
             auto insert_happened = insert_result.second;
             auto &self_bitmap = self_iter->second;
 
             if (insert_happened) {
+                // Key was not present in self, so insert was performed above.
+                // In the logic table above, this reflects the case
+                // (self.absent ^ other.present) == other
+                // Because the copy has already happened, thanks to the 'insert'
+                // operation above, we just need to set the copyOnWrite flag.
+
                 // Key not present in self, so insert was performed, reflecting
                 // the operation (empty ^ X) == X
                 // The bitmap has been copied, so we just need to set the
