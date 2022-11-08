@@ -451,10 +451,14 @@ public:
         const auto max_cardinality =
             uint64_t((std::numeric_limits<uint32_t>::max)()) + 1;
 
+        // Bitmap is full if there are 2^32 bitmaps, each with cardinality 2^32.
+        if (roarings.size() != max_cardinality) {
+            return false;
+        }
+
         for (const auto &entry : roarings) {
             const auto &bitmap = entry.second;
-            auto bc = bitmap.cardinality();
-            if (bc != max_cardinality) {
+            if (bitmap.cardinality() != max_cardinality) {
                 return false;
             }
         }
