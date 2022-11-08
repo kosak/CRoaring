@@ -139,6 +139,7 @@ public:
         if (min > max) {
             return;
         }
+        size_t megaCow = 0;
         uint32_t start_high = highBytes(min);
         uint32_t start_low = lowBytes(min);
         uint32_t end_high = highBytes(max);
@@ -159,6 +160,10 @@ public:
                 (std::numeric_limits<uint32_t>::min)(),
                 (std::numeric_limits<uint32_t>::max)());
             roarings[start_high].setCopyOnWrite(copyOnWrite);
+            if (++megaCow == 1000000) {
+                std::cout << "hi " << start_high << '\n';
+                megaCow = 0;
+            }
         }
         roarings[end_high].addRangeClosed(
             (std::numeric_limits<uint32_t>::min)(), end_low);

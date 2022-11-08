@@ -1129,6 +1129,17 @@ DEFINE_TEST(test_cpp_is_subset_64) {
   assert_true(r3.isSubset(r2));
 }
 
+DEFINE_TEST(test_cpp_is_full_64) {
+    const auto uint64_max = std::numeric_limits<uint64_t>::max();
+    Roaring64Map r;
+    assert_true(r.isEmpty());
+    assert_false(r.isFull());
+    r.setCopyOnWrite(true);
+    r.addRangeClosed(0, uint64_max);
+    assert_false(r.isEmpty());
+    assert_true(r.isFull());
+}
+
 DEFINE_TEST(test_cpp_remove_run_compression) {
   Roaring r;
   uint32_t max = (std::numeric_limits<uint32_t>::max)();
@@ -1241,6 +1252,7 @@ int main() {
         cmocka_unit_test(issue_336),
         cmocka_unit_test(issue_372),
         cmocka_unit_test(test_cpp_is_subset_64),
+        cmocka_unit_test(test_cpp_is_full_64),
         cmocka_unit_test(test_cpp_remove_run_compression),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
