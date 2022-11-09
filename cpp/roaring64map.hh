@@ -795,75 +795,84 @@ public:
 
     /**
      * Computes the negation of the roaring bitmap within the half-open interval
-     * [range_start, range_end). Areas outside the interval are unchanged.
+     * [min, max). Areas outside the interval are unchanged.
      */
-    void flip(uint64_t range_start, uint64_t range_end) {
-        if (range_start >= range_end) {
+    void flip(uint64_t min, uint64_t max) {
+        if (min >= max) {
             return;
         }
-        flipClosed(range_start, range_end - 1);
+        flipClosed(min, max - 1);
     }
 
     /**
      * Computes the negation of the roaring bitmap within the closed interval
-     * [range_start, range_end]. Areas outside the interval are unchanged.
+     * [min, min]. Areas outside the interval are unchanged.
      */
-    void flipClosed(uint64_t range_start, uint64_t range_end) {
-        if (range_start > range_end) {
+    void flipClosed(uint32_t min, uint32_t max) {
+        auto iter = roarings.begin();
+        // Since min and max are uint32_t, highbytes(min or max) == 0. The inner
+        // bitmap we are looking for, if it exists, will be at the first slot of
+        // 'roarings'.
+        if (iter == roarings.end() || iter->first != 0) {
+            return;
+        }
+        auto &bitmap = iter->second;
+        bitmap.flipClosed(min, max);
+        eraseIfEmpty(iter);
+    }
+
+    /**
+     * Computes the negation of the roaring bitmap within the closed interval
+     * [min, max]. Areas outside the interval are unchanged.
+     */
+    void flipClosed(uint64_t min, uint64_t max) {
+        if (min > max) {
           return;
         }
-        uint32_t start_high = highBytes(range_start);
-        uint32_t start_low = lowBytes(range_start);
-        uint32_t end_high = highBytes(range_end);
-        uint32_t end_low = lowBytes(range_end);
+        uint32_t start_high = highBytes(min);
+        uint32_t start_low = lowBytes(min);
+        uint32_t end_high = highBytes(max);
+        uint32_t end_low = lowBytes(max);
 
         // We put std::numeric_limits<>::max in parentheses to avoid a
         // clash with the Windows.h header under Windows.
-        const uint32_t maxUint32 = (std::numeric_limits<uint32_t>::max)();
+        const uint32_t uint32_max = (std::numeric_limits<uint32_t>::max)();
 
         // If start and end land on the same inner bitmap, then we can do the
         // whole operation in one call.
         if (start_high == end_high) {
-            auto &bitmap = roarings[start_high];
-            flipClosed(&bitmap, start_low, end_low);
-            bitmap.setCopyOnWrite(copyOnWrite);
+            auto &bitmap = lookupOrCreateInner(start_high);
+            bitmap.flipClosed(start_low, end_low);
+            eraseIfEmpty(what);
             return;
         }
 
         // Because start and end don't land on the same inner bitmap,
         // we need to do this in multiple steps:
         // 1. Partially flip the first bitmap at values from the closed
-        //    interval [start_low, maxUint32]
-        // 2. Flip intermediate bitmaps completely: [0, maxUint32]
+        //    interval [start_low, uint32_max]
+        // 2. Flip intermediate bitmaps completely: [0, uint32_max]
         // 3. Partially flip the last bitmap with values from the closed
         //    interval [0, end_low]
 
         // Step 1. Partially flip the first bitmap.
         {
-            auto &bitmap = roarings[start_high++];
-            flipClosed(&bitmap, start_low, maxUint32);
-            bitmap.setCopyOnWrite(copyOnWrite);
+            auto &bitmap = lookupOrCreateInner(start_high++);
+            bitmap.flipClosed(start_low, uint32_max);
+            eraseIfEmpty(what);
         }
 
         // Step 2. Flip intermediate bitmaps completely.
         for (; start_high < end_high; ++start_high) {
-            auto &bitmap = roarings[start_high];
-            flipClosed(&bitmap, 0, maxUint32);
-            bitmap.setCopyOnWrite(copyOnWrite);
+            auto &bitmap = lookupOrCreateInner(start_high);
+            bitmap.flipClosed(0, uint32_max);
+            eraseIfEmpty(what);
         }
 
         // Step 3. Partially flip the last bitmap.
-        auto &bitmap = roarings[end_high];
-        flipClosed(&bitmap, 0, end_low);
-        bitmap.setCopyOnWrite(copyOnWrite);
-    }
-
-    // Because the Roaring bitmap does not have a method flipClosed (TODO)
-    // we provide our own method here which adjusts the coordinates and calls
-    // flip().
-    static void flipClosed(Roaring *bitmap, uint32_t start, uint32_t end) {
-        auto exclusive_end = uint64_t(end) + 1;
-        bitmap->flip(start, exclusive_end);
+        auto &bitmap = lookupOrCreateInner(end_high);
+        bitmap.flipClosed(0, end_low);
+        eraseIfEmpty(what);
     }
 
     /**
