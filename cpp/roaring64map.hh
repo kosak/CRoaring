@@ -841,9 +841,10 @@ public:
         // If start and end land on the same inner bitmap, then we can do the
         // whole operation in one call.
         if (start_high == end_high) {
-            auto &bitmap = lookupOrCreateInner(start_high);
+            auto iter = lookupOrCreateInner(start_high);
+            auto &bitmap = iter->second;
             bitmap.flipClosed(start_low, end_low);
-            eraseIfEmpty(what);
+            eraseIfEmpty(iter);
             return;
         }
 
@@ -857,22 +858,25 @@ public:
 
         // Step 1. Partially flip the first bitmap.
         {
-            auto &bitmap = lookupOrCreateInner(start_high++);
+            auto iter = lookupOrCreateInner(start_high++);
+            auto &bitmap = iter->second;
             bitmap.flipClosed(start_low, uint32_max);
-            eraseIfEmpty(what);
+            eraseIfEmpty(iter);
         }
 
         // Step 2. Flip intermediate bitmaps completely.
         for (; start_high < end_high; ++start_high) {
-            auto &bitmap = lookupOrCreateInner(start_high);
+            auto iter = lookupOrCreateInner(start_high);
+            auto &bitmap = iter->second;
             bitmap.flipClosed(0, uint32_max);
-            eraseIfEmpty(what);
+            eraseIfEmpty(iter);
         }
 
         // Step 3. Partially flip the last bitmap.
-        auto &bitmap = lookupOrCreateInner(end_high);
+        auto iter = lookupOrCreateInner(end_high);
+        auto &bitmap = iter->second;
         bitmap.flipClosed(0, end_low);
-        eraseIfEmpty(what);
+        eraseIfEmpty(iter);
     }
 
     /**
@@ -1357,6 +1361,31 @@ private:
             }
         }
         sink("}");
+    }
+
+    /*
+     * Look up 'key' in the 'roarings' map. If it does not exist, create it
+     * and set its copyOnWrite flag to 'copyOnWrite'. Returns an iterator
+     * to the (already existing or newly created) inner bitmap.
+     */
+    roarings_t::iterator lookupOrCreateInner(uint32_t key) {
+        auto iter = roarings.lower_bound(key);
+        // iter points to the smallest element >= key, or end().
+        if (iter != roarings.end() && iter->first == key) {
+            return iter;
+        }
+        // iter->first != key, so iter points to the smallest element > key, or
+        // end(). Insert a fresh bitmap in the slot just prior to iter (with
+        // key = 'key') and set its copy on write flag. We take pains to use
+        // emplace_hint and piecewise_construct to do this with a minimum of
+        // wasted effort.
+        auto new_iter = roarings.emplace_hint(iter,
+            std::piecewise_construct,
+            std::forward_as_tuple(key),
+            std::forward_as_tuple());
+        auto &bitmap = new_iter->second;
+        bitmap.setCopyOnWrite(copyOnWrite);
+        return new_iter;
     }
 
     /**
