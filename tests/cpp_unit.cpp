@@ -1212,6 +1212,10 @@ DEFINE_TEST(test_cpp_frozen_64) {
 }
 
 DEFINE_TEST(test_cpp_flip) {
+    // We put std::numeric_limits<>::max in parentheses to avoid a
+    // clash with the Windows.h header under Windows.
+    const auto uint32_max = (std::numeric_limits<uint32_t>::max)();
+
     {
         // nothing is affected outside of the given range
         Roaring r1 = Roaring::bitmapOf(3, 1, 3, 6);
@@ -1235,11 +1239,8 @@ DEFINE_TEST(test_cpp_flip) {
     }
     {
         // uint32 max can be flipped
-        Roaring r1 =
-            Roaring::bitmapOf(1, (std::numeric_limits<uint32_t>::max)());
-        r1.flip(
-            (std::numeric_limits<uint32_t>::max)(),
-            static_cast<uint64_t>((std::numeric_limits<uint32_t>::max)()) + 1);
+        Roaring r1 = Roaring::bitmapOf(1, uint32_max);
+        r1.flip(uint32_max, static_cast<uint64_t>(uint32_max) + 1);
         assert_true(r1.isEmpty());
     }
     {
@@ -1252,31 +1253,35 @@ DEFINE_TEST(test_cpp_flip) {
 }
 
 DEFINE_TEST(test_cpp_flip_64) {
+    const auto b1 = uint64_t(1) << 32;
+    const auto b2 = uint64_t(2) << 32;
+    // We put std::numeric_limits<>::max in parentheses to avoid a
+    // clash with the Windows.h header under Windows.
+    const auto uint32_max = (std::numeric_limits<uint32_t>::max)();
+
+
     {
         // nothing is affected outside of the given range
-        Roaring64Map r1 = Roaring64Map::bitmapOf(3, (((uint64_t)1) << 32) - 3, ((uint64_t)1) << 32,
-                                                 (((uint64_t)1) << 32) + 3);
-        r1.flip((((uint64_t)1) << 32) - 2, (((uint64_t)1) << 32) + 2);
+        Roaring64Map r1 = Roaring64Map::bitmapOf(3, b1 - 3, b1, b1 + 3);
+        r1.flip(b1 - 2, b1 + 2);
         Roaring64Map r2 = Roaring64Map::bitmapOf(
-            5, (((uint64_t)1) << 32) - 3, (((uint64_t)1) << 32) - 2, (((uint64_t)1) << 32) - 1,
-            (((uint64_t)1) << 32) + 1, (((uint64_t)1) << 32) + 3);
+            5, b1 - 3, b1 - 2, b1 - 1, b1 + 1, b1 + 3);
         assert_true(r1 == r2);
     }
     {
         // given range can go outside of existing range
-        Roaring64Map r1 = Roaring64Map::bitmapOf(2, (((uint64_t)1) << 32) - 2, ((uint64_t)1) << 32);
-        r1.flip((((uint64_t)1) << 32) - 3, (((uint64_t)1) << 32) + 2);
+        Roaring64Map r1 = Roaring64Map::bitmapOf(2, b1 - 2, b1);
+        r1.flip(b1 - 3, b1 + 2);
         Roaring64Map r2 = Roaring64Map::bitmapOf(
-            3, (((uint64_t)1) << 32) - 3, (((uint64_t)1) << 32) - 1, (((uint64_t)1) << 32) + 1);
+            3, b1 - 3, b1 - 1, b1 + 1);
         assert_true(r1 == r2);
     }
     {
         // range end is exclusive
-        Roaring64Map r1 =
-            Roaring64Map::bitmapOf(2, (((uint64_t)2) << 32) - 1, (((uint64_t)2) << 32) + 2);
-        r1.flip((((uint64_t)2) << 32) - 1, (((uint64_t)2) << 32) + 2);
+        Roaring64Map r1 = Roaring64Map::bitmapOf(2, b2 - 1, b2 + 2);
+        r1.flip(b2 - 1, b2 + 2);
         Roaring64Map r2;
-        for (uint64_t i = (((uint64_t)2) << 32); i <= (((uint64_t)2) << 32) + 2; ++i) {
+        for (uint64_t i = b2; i <= b2 + 2; ++i) {
             r2.add(i);
         }
         assert_true(r1 == r2);
@@ -1284,17 +1289,15 @@ DEFINE_TEST(test_cpp_flip_64) {
     {
         // uint32 max can be flipped
         Roaring64Map r1 =
-            Roaring64Map::bitmapOf(1, static_cast<uint64_t>((std::numeric_limits<uint32_t>::max)()));
-        r1.flip(
-            (std::numeric_limits<uint32_t>::max)(),
-            static_cast<uint64_t>((std::numeric_limits<uint32_t>::max)()) + 1);
+            Roaring64Map::bitmapOf(1, static_cast<uint64_t>(uint32_max));
+        r1.flip(uint32_max, static_cast<uint64_t>(uint32_max) + 1);
         assert_true(r1.isEmpty());
     }
     {
         // empty range does nothing
-        Roaring64Map r1 = Roaring64Map::bitmapOf(2, (((uint64_t)1) << 32) - 1, ((uint64_t)1) << 32);
+        Roaring64Map r1 = Roaring64Map::bitmapOf(2, b1 - 1, b1);
         Roaring64Map r2 = r1;
-        r1.flip((((uint64_t)1) << 32) - 1, (((uint64_t)1) << 32) - 1);
+        r1.flip(b1 - 1, b1 - 1);
         assert_true(r1 == r2);
     }
 }
