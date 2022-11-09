@@ -1218,34 +1218,34 @@ DEFINE_TEST(test_cpp_flip) {
 
     {
         // nothing is affected outside of the given range
-        Roaring r1 = Roaring::bitmapOf(3, 1, 3, 6);
+        Roaring r1 = Roaring::bitmapOfList({1, 3, 6});
         r1.flip(2, 5);
-        Roaring r2 = Roaring::bitmapOf(4, 1, 2, 4, 6);
+        Roaring r2 = Roaring::bitmapOfList({1, 2, 4, 6});
         assert_true(r1 == r2);
     }
     {
         // given range can go outside of existing range
-        Roaring r1 = Roaring::bitmapOf(2, 1, 3);
+        Roaring r1 = Roaring::bitmapOfList({1, 3});
         r1.flip(0, 5);
-        Roaring r2 = Roaring::bitmapOf(3, 0, 2, 4);
+        Roaring r2 = Roaring::bitmapOfList({0, 2, 4});
         assert_true(r1 == r2);
     }
     {
         // range end is exclusive
-        Roaring r1 = Roaring::bitmapOf(2, 1, 3);
+        Roaring r1 = Roaring::bitmapOfList({1, 3});
         r1.flip(1, 3);
-        Roaring r2 = Roaring::bitmapOf(2, 2, 3);
+        Roaring r2 = Roaring::bitmapOfList({2, 3});
         assert_true(r1 == r2);
     }
     {
         // uint32 max can be flipped
-        Roaring r1 = Roaring::bitmapOf(1, uint32_max);
+        Roaring r1 = Roaring::bitmapOfList({uint32_max});
         r1.flip(uint32_max, static_cast<uint64_t>(uint32_max) + 1);
         assert_true(r1.isEmpty());
     }
     {
         // empty range does nothing
-        Roaring r1 = Roaring::bitmapOf(2, 2, 3);
+        Roaring r1 = Roaring::bitmapOfList({2, 3});
         Roaring r2 = r1;
         r1.flip(2, 2);
         assert_true(r1 == r2);
@@ -1259,26 +1259,25 @@ DEFINE_TEST(test_cpp_flip_64) {
     // clash with the Windows.h header under Windows.
     const auto uint32_max = (std::numeric_limits<uint32_t>::max)();
 
-
     {
         // nothing is affected outside of the given range
-        Roaring64Map r1 = Roaring64Map::bitmapOf(3, b1 - 3, b1, b1 + 3);
+        Roaring64Map r1 = Roaring64Map::bitmapOfList({b1 - 3, b1, b1 + 3});
         r1.flip(b1 - 2, b1 + 2);
-        Roaring64Map r2 = Roaring64Map::bitmapOf(
-            5, b1 - 3, b1 - 2, b1 - 1, b1 + 1, b1 + 3);
+        Roaring64Map r2 = Roaring64Map::bitmapOfList(
+            {b1 - 3, b1 - 2, b1 - 1, b1 + 1, b1 + 3});
         assert_true(r1 == r2);
     }
     {
         // given range can go outside of existing range
-        Roaring64Map r1 = Roaring64Map::bitmapOf(2, b1 - 2, b1);
+        Roaring64Map r1 = Roaring64Map::bitmapOfList({b1 - 2, b1});
         r1.flip(b1 - 3, b1 + 2);
-        Roaring64Map r2 = Roaring64Map::bitmapOf(
-            3, b1 - 3, b1 - 1, b1 + 1);
+        Roaring64Map r2 = Roaring64Map::bitmapOfList(
+            {b1 - 3, b1 - 1, b1 + 1});
         assert_true(r1 == r2);
     }
     {
         // range end is exclusive
-        Roaring64Map r1 = Roaring64Map::bitmapOf(2, b2 - 1, b2 + 2);
+        Roaring64Map r1 = Roaring64Map::bitmapOfList({b2 - 1, b2 + 2});
         r1.flip(b2 - 1, b2 + 2);
         Roaring64Map r2;
         for (uint64_t i = b2; i <= b2 + 2; ++i) {
@@ -1288,14 +1287,13 @@ DEFINE_TEST(test_cpp_flip_64) {
     }
     {
         // uint32 max can be flipped
-        Roaring64Map r1 =
-            Roaring64Map::bitmapOf(1, static_cast<uint64_t>(uint32_max));
+        Roaring64Map r1 = Roaring64Map::bitmapOfList({uint32_max});
         r1.flip(uint32_max, static_cast<uint64_t>(uint32_max) + 1);
         assert_true(r1.isEmpty());
     }
     {
         // empty range does nothing
-        Roaring64Map r1 = Roaring64Map::bitmapOf(2, b1 - 1, b1);
+        Roaring64Map r1 = Roaring64Map::bitmapOfList({b1 - 1, b1});
         Roaring64Map r2 = r1;
         r1.flip(b1 - 1, b1 - 1);
         assert_true(r1 == r2);

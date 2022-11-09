@@ -11,6 +11,7 @@ A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 #include <cstdio>  // for std::printf() in the printf() method
 #include <cstring>  // for std::memcpy()
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <map>
 #include <new>
@@ -81,7 +82,7 @@ public:
      Roaring64Map &operator=(Roaring64Map &&r) noexcept = default;
 
     /**
-     * Construct a bitmap from a list of integer values.
+     * Construct a bitmap from a list of uint64_t values.
      */
     static Roaring64Map bitmapOf(size_t n...) {
         Roaring64Map ans;
@@ -91,6 +92,15 @@ public:
             ans.add(va_arg(vl, uint64_t));
         }
         va_end(vl);
+        return ans;
+    }
+
+    /**
+     * Construct a bitmap from an initializer_list of uint64_t values.
+     */
+    static Roaring64Map bitmapOfList(std::initializer_list<uint64_t> values) {
+        Roaring64Map ans;
+        ans.addMany(values.size(), values.begin());
         return ans;
     }
 

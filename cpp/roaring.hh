@@ -7,6 +7,7 @@ A C++ header for Roaring Bitmaps.
 #include <cstdarg>
 
 #include <algorithm>
+#include <initializer_list>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -99,7 +100,7 @@ public:
     }
 
     /**
-     * Construct a bitmap from a list of integer values.
+     * Construct a bitmap from a list of uint32_t values.
      */
     static Roaring bitmapOf(size_t n, ...) {
         Roaring ans;
@@ -109,6 +110,15 @@ public:
             ans.add(va_arg(vl, uint32_t));
         }
         va_end(vl);
+        return ans;
+    }
+
+    /**
+     * Construct a bitmap from an initializer list of uint32_t values.
+     */
+    static Roaring bitmapOfList(std::initializer_list<uint32_t> values) {
+        Roaring ans;
+        ans.addMany(values.size(), values.begin());
         return ans;
     }
 
